@@ -46,7 +46,8 @@ public abstract class SmithingScreenHandlerMixin extends ForgingScreenHandler {
         SmithingRecipeInput smithingRecipeInput = this.createRecipeInput();
 
         if (this.player instanceof ServerPlayerEntity serverPlayer) {
-            ServerWorld serverWorld = serverPlayer.getWorld();
+            ServerWorld serverWorld = serverPlayer.getEntityWorld();
+
             Optional<RecipeEntry<SmithingRecipe>> optionalRecipeEntry = serverWorld.getRecipeManager().getFirstMatch(
                     RecipeType.SMITHING,
                     smithingRecipeInput,

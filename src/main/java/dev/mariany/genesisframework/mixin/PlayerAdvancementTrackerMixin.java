@@ -72,7 +72,12 @@ public class PlayerAdvancementTrackerMixin {
     /**
      * Updates client age item unlocks state and shares the age advancement with other players.
      */
-    @WrapOperation(method = "grantCriterion", at = @At(value = "INVOKE", target = "Lnet/minecraft/advancement/PlayerAdvancementTracker;onStatusUpdate(Lnet/minecraft/advancement/AdvancementEntry;)V"))
+    @WrapOperation(
+            method = "grantCriterion", at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/advancement/PlayerAdvancementTracker;onStatusUpdate(Lnet/minecraft/advancement/AdvancementEntry;)V"
+    )
+    )
     public void wrapOnStatusUpdate(
             PlayerAdvancementTracker playerAdvancementTracker,
             AdvancementEntry advancement,
@@ -84,17 +89,15 @@ public class PlayerAdvancementTrackerMixin {
         if (optionalAge.isPresent()) {
             ServerPlayNetworking.send(owner, new UpdateLockedItems(ageManager.getLockedItems(owner)));
 
-            MinecraftServer server = owner.getServer();
+            MinecraftServer server = owner.getEntityWorld().getServer();
 
-            if (server != null) {
-                if (server.getGameRules().getBoolean(GFGamerules.SHARED_AGE_PROGRESSION)) {
-                    AgeShareManager ageShareManager = AgeShareManager.getServerState(server);
+            if (server.getGameRules().getBoolean(GFGamerules.SHARED_AGE_PROGRESSION)) {
+                AgeShareManager ageShareManager = AgeShareManager.getServerState(server);
 
-                    if (ConfigHandler.getConfig().teamBasedAgeSharing) {
-                        ageShareManager.shareWithTeam(owner, optionalAge.get());
-                    } else {
-                        ageShareManager.shareWithServer(server, optionalAge.get());
-                    }
+                if (ConfigHandler.getConfig().teamBasedAgeSharing) {
+                    ageShareManager.shareWithTeam(owner, optionalAge.get());
+                } else {
+                    ageShareManager.shareWithServer(server, optionalAge.get());
                 }
             }
         }

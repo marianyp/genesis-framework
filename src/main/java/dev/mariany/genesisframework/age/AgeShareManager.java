@@ -119,7 +119,7 @@ public class AgeShareManager extends PersistentState {
             teamAges.put(teamName, ages);
             this.markDirty();
 
-            List<ServerPlayerEntity> sharingPlayers = getSharingPlayers(player.getServer(), team);
+            List<ServerPlayerEntity> sharingPlayers = getSharingPlayers(player.getEntityWorld().getServer(), team);
 
             GenesisFramework.LOGGER.info("Preparing to shared ages with {} players on team {}", sharingPlayers.size(), teamName);
 

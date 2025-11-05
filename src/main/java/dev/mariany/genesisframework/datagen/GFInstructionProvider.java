@@ -28,7 +28,7 @@ public class GFInstructionProvider extends InstructionProvider {
                         GFItems.AGE_BOOK,
                         Text.translatable("instruction.genesisframework.view_ages"),
                         Text.translatable("instruction.genesisframework.view_ages.description",
-                                Text.keybind(MinecraftClient.getInstance().options.advancementsKey.getTranslationKey())
+                                Text.keybind(MinecraftClient.getInstance().options.advancementsKey.getBoundKeyTranslationKey())
                         )
                 )
                 .criterion("view_ages", OpenAdvancementTabCriteria.Conditions.create(AgeEntry.ROOT_ADVANCEMENT_ID))

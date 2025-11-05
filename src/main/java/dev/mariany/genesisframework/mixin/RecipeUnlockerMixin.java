@@ -29,7 +29,7 @@ public interface RecipeUnlockerMixin {
             RecipeEntry<?> recipe,
             CallbackInfoReturnable<Boolean> cir
     ) {
-        ServerWorld serverWorld = player.getWorld();
+        ServerWorld serverWorld = player.getEntityWorld();
         RegistryWrapper.WrapperLookup registries = serverWorld.getRegistryManager();
         AgeManager ageManager = AgeManager.getInstance();
 

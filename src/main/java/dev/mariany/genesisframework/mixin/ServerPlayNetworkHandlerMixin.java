@@ -34,7 +34,7 @@ public class ServerPlayNetworkHandlerMixin {
             RegistryKey<Recipe<?>> recipeKey,
             Operation<Boolean> original
     ) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
 
         if (server != null) {
             ServerRecipeManager recipeManager = server.getRecipeManager();

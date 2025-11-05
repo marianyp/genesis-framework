@@ -66,14 +66,19 @@ public class BeforeAdvancementsLoadHandler {
     }
 
     private static AdvancementEntry getRootAgeAdvancement() {
-        return new AdvancementEntry(AgeEntry.ROOT_ADVANCEMENT_ID,
+        return new AdvancementEntry(
+                AgeEntry.ROOT_ADVANCEMENT_ID,
                 new Advancement(
                         Optional.empty(),
                         Optional.of(new AdvancementDisplay(
                                 GFItems.AGE_BOOK.getDefaultStack(),
                                 Text.translatable("advancements.genesisframework.ages.title"),
                                 Text.empty(),
-                                Optional.of(new AssetInfo(Identifier.ofVanilla("block/dark_oak_planks"))),
+                                Optional.of(
+                                        new AssetInfo.TextureAssetInfo(
+                                                Identifier.ofVanilla("block/dark_oak_planks")
+                                        )
+                                ),
                                 AdvancementFrame.TASK,
                                 false,
                                 false,
@@ -93,14 +98,19 @@ public class BeforeAdvancementsLoadHandler {
     }
 
     private static AdvancementEntry getRootInstructionAdvancement() {
-        return new AdvancementEntry(InstructionEntry.ROOT_ADVANCEMENT_ID,
+        return new AdvancementEntry(
+                InstructionEntry.ROOT_ADVANCEMENT_ID,
                 new Advancement(
                         Optional.empty(),
                         Optional.of(new AdvancementDisplay(
                                 Items.COMPASS.getDefaultStack(),
                                 Text.translatable("advancements.genesisframework.instructions.title"),
                                 Text.empty(),
-                                Optional.of(new AssetInfo(Identifier.ofVanilla("block/lime_terracotta"))),
+                                Optional.of(
+                                        new AssetInfo.TextureAssetInfo(
+                                                Identifier.ofVanilla("block/lime_terracotta")
+                                        )
+                                ),
                                 AdvancementFrame.TASK,
                                 false,
                                 false,

@@ -25,16 +25,14 @@ public class ServerPlayerNetworkHandlerMixin {
      */
     @Inject(method = "onAdvancementTab", at = @At(value = "TAIL"))
     public void injectOnAdvancementTab(AdvancementTabC2SPacket packet, CallbackInfo ci) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.getEntityWorld().getServer();
 
-        if (server != null) {
-            if (packet.getAction() == AdvancementTabC2SPacket.Action.OPENED_TAB) {
-                Identifier advancementId = Objects.requireNonNull(packet.getTabToOpen());
-                AdvancementEntry advancementEntry = server.getAdvancementLoader().get(advancementId);
+        if (packet.getAction() == AdvancementTabC2SPacket.Action.OPENED_TAB) {
+            Identifier advancementId = Objects.requireNonNull(packet.getTabToOpen());
+            AdvancementEntry advancementEntry = server.getAdvancementLoader().get(advancementId);
 
-                if (advancementEntry != null) {
-                    GFCriteria.OPEN_ADVANCEMENT_TAB.trigger(player, advancementId);
-                }
+            if (advancementEntry != null) {
+                GFCriteria.OPEN_ADVANCEMENT_TAB.trigger(player, advancementId);
             }
         }
     }
