@@ -6,11 +6,13 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.toast.RecipeToast;
 import net.minecraft.client.toast.ToastManager;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.recipe.Ingredient;
 import net.minecraft.recipe.display.RecipeDisplay;
 import net.minecraft.recipe.display.SlotDisplay;
+import net.minecraft.registry.entry.RegistryEntry;
 
 import java.util.*;
 
@@ -31,24 +33,28 @@ public class ClientAgeManager {
     public void reset() {
         GenesisFramework.LOGGER.info("Resetting Client Age Manager");
 
-        lockedItems.clear();
-        initiatedLockedItems = false;
+        this.lockedItems.clear();
+        this.initiatedLockedItems = false;
     }
 
     public boolean isUnlocked(ItemStack stack) {
-        return lockedItems.stream().noneMatch(ingredient -> ingredient.test(stack));
+        return this.lockedItems.stream().noneMatch(ingredient -> ingredient.test(stack));
     }
 
     public void updateLockedItems(Collection<Ingredient> changes) {
-        boolean initial = !initiatedLockedItems;
-        int oldSize = lockedItems.size();
-        List<Ingredient> difference = getDifference(lockedItems, changes);
+        boolean initial = !this.initiatedLockedItems;
+        int oldSize = this.lockedItems.size();
+        List<Ingredient> difference = getDifference(this.lockedItems, changes);
 
-        lockedItems.clear();
-        lockedItems.addAll(changes);
-        initiatedLockedItems = true;
+        this.lockedItems.clear();
+        this.lockedItems.addAll(changes);
+        this.initiatedLockedItems = true;
 
-        GenesisFramework.LOGGER.info("Updated age instructions. Old Size: {} | New Size: {}", oldSize, lockedItems.size());
+        GenesisFramework.LOGGER.info(
+                "Updated age instructions. Old Size: {} | New Size: {}",
+                oldSize,
+                this.lockedItems.size()
+        );
 
         if (!initial) {
             afterUpdateItemUnlocks(difference);
@@ -60,9 +66,10 @@ public class ClientAgeManager {
             Collection<Ingredient> after
     ) {
         Set<Ingredient> ingredients = new HashSet<>(after);
+
         return before.stream()
-                .filter(oldIngredient -> !ingredients.contains(oldIngredient))
-                .toList();
+                     .filter(oldIngredient -> !ingredients.contains(oldIngredient))
+                     .toList();
     }
 
     private void afterUpdateItemUnlocks(Collection<Ingredient> changes) {
@@ -70,25 +77,27 @@ public class ClientAgeManager {
         ToastManager toastManager = client.getToastManager();
 
         for (Ingredient ingredient : changes) {
-            ingredient.getMatchingItems().forEach(entry -> RecipeToast.show(toastManager,
-                            new RecipeDisplay() {
-                                @Override
-                                public SlotDisplay result() {
-                                    return new SlotDisplay.StackSlotDisplay(entry.value().getDefaultStack());
-                                }
-
-                                @Override
-                                public SlotDisplay craftingStation() {
-                                    return new SlotDisplay.StackSlotDisplay(Items.AIR.getDefaultStack());
-                                }
-
-                                @Override
-                                public Serializer<? extends RecipeDisplay> serializer() {
-                                    return null;
-                                }
-                            }
-                    )
-            );
+            ingredient.getMatchingItems()
+                      .forEach(entry -> RecipeToast.show(toastManager, createRecipeDisplay(entry)));
         }
+    }
+
+    private static RecipeDisplay createRecipeDisplay(RegistryEntry<Item> entry) {
+        return new RecipeDisplay() {
+            @Override
+            public SlotDisplay result() {
+                return new SlotDisplay.StackSlotDisplay(entry.value().getDefaultStack());
+            }
+
+            @Override
+            public SlotDisplay craftingStation() {
+                return new SlotDisplay.StackSlotDisplay(Items.AIR.getDefaultStack());
+            }
+
+            @Override
+            public Serializer<? extends RecipeDisplay> serializer() {
+                return null;
+            }
+        };
     }
 }

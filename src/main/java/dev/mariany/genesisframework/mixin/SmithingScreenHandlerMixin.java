@@ -55,24 +55,22 @@ public abstract class SmithingScreenHandlerMixin extends ForgingScreenHandler {
             );
 
             optionalRecipeEntry.ifPresent(recipeEntry -> {
-                        SmithingRecipe recipe = recipeEntry.value();
-                        ItemStack itemStack = recipe.craft(
-                                smithingRecipeInput,
-                                serverWorld.getRegistryManager()
-                        );
+                ItemStack itemStack = recipeEntry.value().craft(
+                        smithingRecipeInput,
+                        serverWorld.getRegistryManager()
+                );
 
-                        // Allows procedures like applying a smithing trim.
-                        for (int i = 0; i < smithingRecipeInput.size(); i++) {
-                            if (smithingRecipeInput.getStackInSlot(i).isOf(itemStack.getItem())) {
-                                return;
-                            }
-                        }
-
-                        if (!AgeManager.getInstance().isUnlocked(serverPlayer, itemStack)) {
-                            ci.cancel();
-                        }
+                // Allows procedures like applying a smithing trim.
+                for (int i = 0; i < smithingRecipeInput.size(); i++) {
+                    if (smithingRecipeInput.getStackInSlot(i).isOf(itemStack.getItem())) {
+                        return;
                     }
-            );
+                }
+
+                if (!AgeManager.getInstance().isUnlocked(serverPlayer, itemStack)) {
+                    ci.cancel();
+                }
+            });
         }
     }
 }

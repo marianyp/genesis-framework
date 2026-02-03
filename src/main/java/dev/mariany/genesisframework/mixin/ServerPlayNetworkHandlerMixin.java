@@ -28,25 +28,28 @@ public class ServerPlayNetworkHandlerMixin {
     /**
      * Check if an item is unlocked when calling {@link ServerRecipeBook#isUnlocked(RegistryKey)}.
      */
-    @WrapOperation(method = "onCraftRequest", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/network/ServerRecipeBook;isUnlocked(Lnet/minecraft/registry/RegistryKey;)Z"))
+    @WrapOperation(
+            method = "onCraftRequest",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/network/ServerRecipeBook;isUnlocked(Lnet/minecraft/registry/RegistryKey;)Z"
+            )
+    )
     public boolean wrapOnCraftRequest(
             ServerRecipeBook recipeBook,
             RegistryKey<Recipe<?>> recipeKey,
             Operation<Boolean> original
     ) {
-        MinecraftServer server = player.getEntityWorld().getServer();
+        MinecraftServer server = this.player.getEntityWorld().getServer();
+        ServerRecipeManager recipeManager = server.getRecipeManager();
+        Optional<RecipeEntry<?>> recipeEntry = recipeManager.get(recipeKey);
 
-        if (server != null) {
-            ServerRecipeManager recipeManager = server.getRecipeManager();
-            Optional<RecipeEntry<?>> recipeEntry = recipeManager.get(recipeKey);
+        if (recipeEntry.isPresent()) {
+            if (recipeEntry.get().value() instanceof CraftingRecipe craftingRecipe) {
+                ItemStack stack = craftingRecipe.craft(CraftingRecipeInput.EMPTY, server.getRegistryManager());
 
-            if (recipeEntry.isPresent()) {
-                if (recipeEntry.get().value() instanceof CraftingRecipe craftingRecipe) {
-                    ItemStack stack = craftingRecipe.craft(CraftingRecipeInput.EMPTY, server.getRegistryManager());
-
-                    if (!AgeManager.getInstance().isUnlocked(player, stack)) {
-                        return false;
-                    }
+                if (!AgeManager.getInstance().isUnlocked(this.player, stack)) {
+                    return false;
                 }
             }
         }

@@ -34,9 +34,15 @@ public interface RecipeUnlockerMixin {
         AgeManager ageManager = AgeManager.getInstance();
 
         if (recipe.value() instanceof CraftingRecipe craftingRecipe) {
-            ItemStack stack = craftingRecipe.craft(CraftingRecipeInput.EMPTY, registries);
+            final ItemStack stack;
 
-            if (!ageManager.isUnlocked(player, stack) && !player.isCreative()) {
+            try {
+                stack = craftingRecipe.craft(CraftingRecipeInput.EMPTY, registries);
+            } catch (Exception exception) {
+                return;
+            }
+
+            if (!stack.isEmpty() && !ageManager.isUnlocked(player, stack) && !player.isCreative()) {
                 cir.setReturnValue(false);
             }
         }
