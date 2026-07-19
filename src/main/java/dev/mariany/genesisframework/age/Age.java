@@ -4,26 +4,30 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerCriteria;
 import dev.mariany.genesisframework.stat.GFStats;
-import net.minecraft.advancement.AdvancementCriterion;
-import net.minecraft.advancement.AdvancementRequirements;
-import net.minecraft.advancement.criterion.Criteria;
-import net.minecraft.advancement.criterion.OnKilledCriterion;
-import net.minecraft.advancement.criterion.TickCriterion;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.Item;
-import net.minecraft.predicate.NumberRange;
-import net.minecraft.predicate.entity.*;
-import net.minecraft.predicate.item.ItemPredicate;
-import net.minecraft.recipe.Ingredient;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.stat.Stats;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.World;
+import net.minecraft.advancements.AdvancementRequirements;
+import net.minecraft.advancements.predicates.ContextAwarePredicate;
+import net.minecraft.advancements.predicates.DamageSourcePredicate;
+import net.minecraft.advancements.predicates.ItemPredicate;
+import net.minecraft.advancements.predicates.MinMaxBounds;
+import net.minecraft.advancements.predicates.entity.EntityEquipmentPredicate;
+import net.minecraft.advancements.predicates.entity.EntityPredicate;
+import net.minecraft.advancements.predicates.entity.PlayerPredicate;
+import net.minecraft.advancements.triggers.*;
+import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.stats.Stats;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -31,39 +35,65 @@ import java.util.function.Consumer;
 
 public record Age(
         List<Ingredient> items,
-        List<RegistryKey<World>> dimensions,
+        List<ResourceKey<Level>> dimensions,
+        Optional<AgeItemTraits> itemTraits,
         Optional<Identifier> parent,
         boolean requiresParent,
-        Map<String, AdvancementCriterion<?>> criteria,
+        Map<String, Criterion<?>> criteria,
         AdvancementRequirements requirements,
         AgeDisplay display
 ) {
-    private static final Codec<Map<String, AdvancementCriterion<?>>> CRITERIA_CODEC = Codec.unboundedMap(Codec.STRING, AdvancementCriterion.CODEC);
+    private static final Codec<Map<String, Criterion<?>>> CRITERIA_CODEC =
+            Codec.unboundedMap(Codec.STRING, Criterion.CODEC);
+
     public static final Codec<Age> CODEC = RecordCodecBuilder.create(
             instance -> instance.group(
-                            Ingredient.CODEC.listOf().optionalFieldOf("items", List.of()).forGetter(Age::items),
-                            RegistryKey.createCodec(RegistryKeys.WORLD).listOf().optionalFieldOf("dimensions", List.of())
-                                    .forGetter(Age::dimensions),
-                            Identifier.CODEC.optionalFieldOf("parent").forGetter(Age::parent),
-                            Codec.BOOL.optionalFieldOf("requires_parent", true)
-                                    .forGetter(Age::requiresParent),
-                            CRITERIA_CODEC.optionalFieldOf("criteria", new HashMap<>()).forGetter(Age::criteria),
-                            AdvancementRequirements.CODEC.optionalFieldOf("requirements", AdvancementRequirements.EMPTY)
-                                    .forGetter(Age::requirements),
-                            AgeDisplay.CODEC.fieldOf("display").forGetter(Age::display)
-                    )
-                    .apply(instance, Age::new)
+                                        Ingredient.CODEC
+                                                .listOf()
+                                                .optionalFieldOf("items", List.of())
+                                                .forGetter(Age::items),
+                                        ResourceKey
+                                                .codec(Registries.DIMENSION)
+                                                .listOf()
+                                                .optionalFieldOf("dimensions", List.of())
+                                                .forGetter(Age::dimensions),
+                                        AgeItemTraits.CODEC
+                                                .optionalFieldOf("item_traits")
+                                                .forGetter(Age::itemTraits),
+                                        Identifier.CODEC
+                                                .optionalFieldOf("parent")
+                                                .forGetter(Age::parent),
+                                        Codec.BOOL
+                                                .optionalFieldOf("requires_parent", true)
+                                                .forGetter(Age::requiresParent),
+                                        CRITERIA_CODEC
+                                                .optionalFieldOf("criteria", new HashMap<>())
+                                                .forGetter(Age::criteria),
+                                        AdvancementRequirements.CODEC
+                                                .optionalFieldOf("requirements", AdvancementRequirements.EMPTY)
+                                                .forGetter(Age::requirements),
+                                        AgeDisplay.CODEC.fieldOf("display").forGetter(Age::display)
+                                )
+                                .apply(instance, Age::new)
     );
 
     @SuppressWarnings("unused")
     public static class Builder {
         private final List<Ingredient> items = new ArrayList<>();
-        private final List<RegistryKey<World>> dimensions = new ArrayList<>();
+        private final List<ResourceKey<Level>> dimensions = new ArrayList<>();
+
+        @Nullable
+        private AgeItemTraits itemTraits = null;
+
         @Nullable
         private Identifier parent = null;
+
         private boolean requiresParent = true;
-        private final Map<String, AdvancementCriterion<?>> criteria = new HashMap<>();
+
+        private final Map<String, Criterion<?>> criteria = new HashMap<>();
+
         private AdvancementRequirements requirements = AdvancementRequirements.EMPTY;
+
         private AgeDisplay display;
 
         private Builder() {
@@ -73,24 +103,27 @@ public record Age(
             return new Builder();
         }
 
-        public Builder itemUnlocks(Ingredient ingredient) {
+        public Builder itemUnlock(Ingredient ingredient) {
             this.items.add(ingredient);
             return this;
         }
 
         public Builder itemUnlocks(List<Ingredient> ingredients) {
-            this.items.clear();
             this.items.addAll(ingredients);
             return this;
         }
 
-        public Builder dimensionUnlocks(RegistryKey<World> worldRegistryKey) {
+        public Builder itemTraits(AgeItemTraits itemTraits) {
+            this.itemTraits = itemTraits;
+            return this;
+        }
+
+        public Builder dimensionUnlock(ResourceKey<Level> worldRegistryKey) {
             this.dimensions.add(worldRegistryKey);
             return this;
         }
 
-        public Builder dimensionUnlocks(List<RegistryKey<World>> worldRegistryKeys) {
-            this.dimensions.clear();
+        public Builder dimensionUnlocks(List<ResourceKey<Level>> worldRegistryKeys) {
             this.dimensions.addAll(worldRegistryKeys);
             return this;
         }
@@ -110,7 +143,7 @@ public record Age(
             return this;
         }
 
-        public Builder criterion(String name, AdvancementCriterion<?> criterion) {
+        public Builder criterion(String name, Criterion<?> criterion) {
             this.criteria.put(name, criterion);
             return this;
         }
@@ -119,69 +152,92 @@ public record Age(
             Optional<String> categoryOpt = AgeEntry.getCategory(id);
             Optional<String> subpathOpt = AgeEntry.getSubPath(id);
 
-            String name = subpathOpt.map(
-                    subpath -> categoryOpt
-                            .map(category -> "has_" + subpath + "_" + category + "_age")
-                            .orElse("has_" + subpath + "_age")
-            ).orElse("has_age");
+            String name = subpathOpt
+                    .map(
+                            subpath -> categoryOpt
+                                    .map(category -> "has_" + subpath + "_" + category + "_age")
+                                    .orElse("has_" + subpath + "_age")
+                    )
+                    .orElse("has_age");
 
             Identifier advancementId = AgeEntry.getAdvancementId(id);
 
-            return criterion(
-                    name,
-                    Criteria.TICK.create(new TickCriterion.Conditions(
-                                    Optional.of(
-                                            EntityPredicate.contextPredicateFromEntityPredicate(
-                                                    EntityPredicate.Builder.create().typeSpecific(
-                                                            PlayerPredicate.Builder.create()
-                                                                    .advancement(advancementId, true)
-                                                                    .build()
-                                                    )
-                                            )
-                                    )
-                            )
-                    )
-            );
+            PlayerPredicate playerPredicate = PlayerPredicate.Builder
+                    .player()
+                    .checkAdvancementDone(advancementId, true)
+                    .build();
+
+            EntityPredicate.Builder entityPredicate = EntityPredicate.Builder.entity().player(playerPredicate);
+
+            ContextAwarePredicate wrappedEntityPredicate = EntityPredicate.wrap(entityPredicate);
+            Optional<ContextAwarePredicate> optionalPlayerPredicate = Optional.of(wrappedEntityPredicate);
+
+            PlayerTrigger.TriggerInstance triggerInstance = new PlayerTrigger.TriggerInstance(optionalPlayerPredicate);
+
+            Criterion<PlayerTrigger.TriggerInstance> criterion = CriteriaTriggers.TICK.createCriterion(triggerInstance);
+
+            return criterion(name, criterion);
         }
 
         public Builder requireKill(
-                RegistryWrapper.Impl<EntityType<?>> entityLookup,
+                HolderLookup.RegistryLookup<EntityType<?>> entityLookup,
                 EntityType<?> entityType,
                 int atLeast
         ) {
-            return criterion("killed_" + atLeast + EntityType.getId(entityType).getPath(),
-                    OnKilledCriterion.Conditions.createPlayerKilledEntity(
-                            EntityPredicate.Builder.create().type(entityLookup, entityType),
-                            DamageSourcePredicate.Builder.create().sourceEntity(
-                                    EntityPredicate.Builder.create().typeSpecific(
-                                            PlayerPredicate.Builder.create().stat(
-                                                    Stats.KILLED,
-                                                    entityType.getRegistryEntry(),
-                                                    NumberRange.IntRange.atLeast(atLeast - 1)).build()
-                                    )
-                            )
+            Holder.Reference<EntityType<?>> entityTypeHolder = entityType.builtInRegistryHolder();
+            MinMaxBounds.Ints previousKillCount = MinMaxBounds.Ints.atLeast(atLeast - 1);
+
+            PlayerPredicate playerPredicate = PlayerPredicate.Builder
+                    .player()
+                    .addStat(
+                            Stats.ENTITY_KILLED,
+                            entityTypeHolder,
+                            previousKillCount
                     )
+                    .build();
+
+            EntityPredicate.Builder sourceEntityPredicate = EntityPredicate.Builder
+                    .entity()
+                    .player(playerPredicate);
+
+            DamageSourcePredicate.Builder damageSourcePredicate = DamageSourcePredicate.Builder
+                    .damageType()
+                    .source(sourceEntityPredicate);
+
+            EntityPredicate.Builder killedEntityPredicate = EntityPredicate.Builder
+                    .entity()
+                    .of(entityLookup, entityType);
+
+            Criterion<KilledTrigger.TriggerInstance> trigger = KilledTrigger.TriggerInstance.playerKilledEntity(
+                    killedEntityPredicate,
+                    damageSourcePredicate
             );
+
+            String entityTypePath = EntityType.getKey(entityType).getPath();
+            String name = "killed_" + atLeast + entityTypePath;
+
+            return criterion(name, trigger);
         }
 
         public Builder requireKillHostiles(int atLeast) {
-            return criterion("killed_" + atLeast + "_hostiles",
-                    Criteria.TICK.create(
-                            TickCriterion.Conditions.createLocation(
-                                    EntityPredicate.Builder.create().typeSpecific(
-                                            PlayerPredicate.Builder.create().stat(
+            return criterion(
+                    "killed_" + atLeast + "_hostiles",
+                    CriteriaTriggers.TICK.createCriterion(
+                            PlayerTrigger.TriggerInstance.located(
+                                    EntityPredicate.Builder.entity().player(
+                                            PlayerPredicate.Builder.player().addStat(
                                                     Stats.CUSTOM,
                                                     GFStats.HOSTILE_KILLS,
-                                                    NumberRange.IntRange.atLeast(atLeast)
+                                                    MinMaxBounds.Ints.atLeast(atLeast)
                                             ).build()
                                     )
-                            ).conditions()
+                            ).triggerInstance()
                     )
             );
         }
 
         public Builder requireTrialWearing(
-                RegistryWrapper.Impl<Item> itemLookup,
+                HolderLookup.RegistryLookup<Item> itemLookup,
                 boolean ominous,
                 Item head,
                 Item chest,
@@ -191,28 +247,24 @@ public record Age(
             List<String> requirements = new ArrayList<>();
 
             for (EquipmentSlot slot : EquipmentSlot.values()) {
+                EntityEquipmentPredicate.Builder builder = EntityEquipmentPredicate.Builder.equipment();
+
                 @Nullable EntityEquipmentPredicate entityEquipmentPredicate = switch (slot) {
-                    case HEAD -> EntityEquipmentPredicate.Builder.create().head(ItemPredicate.Builder.create()
-                            .items(itemLookup, head)
-                    ).build();
-                    case CHEST -> EntityEquipmentPredicate.Builder.create().chest(ItemPredicate.Builder.create()
-                            .items(itemLookup, chest)
-                    ).build();
-                    case LEGS -> EntityEquipmentPredicate.Builder.create().legs(ItemPredicate.Builder.create()
-                            .items(itemLookup, legs)
-                    ).build();
-                    case FEET -> EntityEquipmentPredicate.Builder.create().feet(ItemPredicate.Builder.create()
-                            .items(itemLookup, feet)
-                    ).build();
+                    case HEAD -> builder.head(ItemPredicate.Builder.item().of(itemLookup, head)).build();
+                    case CHEST -> builder.chest(ItemPredicate.Builder.item().of(itemLookup, chest)).build();
+                    case LEGS -> builder.legs(ItemPredicate.Builder.item().of(itemLookup, legs)).build();
+                    case FEET -> builder.feet(ItemPredicate.Builder.item().of(itemLookup, feet)).build();
                     default -> null;
                 };
 
                 if (entityEquipmentPredicate != null) {
-                    String name = "trial_completed_with_" + slot.asString();
+                    String name = "trial_completed_with_" + slot.getSerializedName();
 
-                    criterion(name, CompleteTrialSpawnerCriteria.Conditions.create(
-                                    EntityPredicate.asLootContextPredicate(
-                                            EntityPredicate.Builder.create().equipment(entityEquipmentPredicate).build()
+                    criterion(
+                            name,
+                            CompleteTrialSpawnerCriteria.Conditions.create(
+                                    EntityPredicate.wrap(
+                                            EntityPredicate.Builder.entity().equipment(entityEquipmentPredicate).build()
                                     ),
                                     ominous
                             )
@@ -228,21 +280,53 @@ public record Age(
         }
 
         public Builder requireTimePlayed(int ticks) {
-            LootContextPredicate predicate = EntityPredicate.asLootContextPredicate(
-                    EntityPredicate.Builder.create().typeSpecific(
-                            PlayerPredicate.Builder.create().stat(
+            ContextAwarePredicate predicate = EntityPredicate.wrap(
+                    EntityPredicate.Builder.entity().player(
+                            PlayerPredicate.Builder.player().addStat(
                                     Stats.CUSTOM,
-                                    Registries.CUSTOM_STAT.getOrThrow(
-                                            RegistryKey.of(RegistryKeys.CUSTOM_STAT, Stats.PLAY_TIME)
+                                    BuiltInRegistries.CUSTOM_STAT.getOrThrow(
+                                            ResourceKey.create(Registries.CUSTOM_STAT, Stats.PLAY_TIME)
                                     ),
-                                    NumberRange.IntRange.atLeast(ticks)).build()
+                                    MinMaxBounds.Ints.atLeast(ticks)
+                            ).build()
                     ).build()
             );
 
-            return criterion("time_played", Criteria.TICK.create(
-                            new TickCriterion.Conditions(Optional.of(predicate))
-                    )
+            return criterion(
+                    "time_played",
+                    CriteriaTriggers.TICK.createCriterion(new PlayerTrigger.TriggerInstance(Optional.of(predicate)))
             );
+        }
+
+        public Age.Builder requireCraft(ItemLike item) {
+            return requireCraft(item, MinMaxBounds.Ints.atLeast(1));
+        }
+
+        public Age.Builder requireCraft(ItemLike item, MinMaxBounds.Ints range) {
+            PlayerPredicate playerPredicate = PlayerPredicate.Builder
+                    .player()
+                    .addStat(Stats.ITEM_CRAFTED, item.asItem().builtInRegistryHolder(), range)
+                    .build();
+
+            EntityPredicate entityPredicate = EntityPredicate.Builder.entity().player(playerPredicate).build();
+
+            ContextAwarePredicate predicate = EntityPredicate.wrap(entityPredicate);
+
+            PlayerTrigger.TriggerInstance triggerInstance = new PlayerTrigger.TriggerInstance(Optional.of(predicate));
+
+            return criterion(id(item, "crafted"), CriteriaTriggers.TICK.createCriterion(triggerInstance));
+        }
+
+        public Age.Builder requireItem(ItemLike item) {
+            return criterion(id(item, "obtained"), InventoryChangeTrigger.TriggerInstance.hasItems(item));
+        }
+
+        private static String id(ItemLike item, String affix) {
+            Holder.Reference<Item> reference = item.asItem().builtInRegistryHolder();
+            ResourceKey<Item> key = reference.key();
+            Identifier identifier = key.identifier();
+            String name = identifier.getPath();
+            return name + "_" + affix;
         }
 
         public Builder display(AgeDisplay display) {
@@ -250,21 +334,29 @@ public record Age(
             return this;
         }
 
-        public Builder display(Item icon, Text title, Text description) {
-            this.display = new AgeDisplay(icon.getDefaultStack(), title, description);
+        public Builder display(ItemLike icon, Component title) {
+            return this.display(icon, title, Component.empty());
+        }
+
+        public Builder display(ItemLike icon, Component title, Component description) {
+            this.display = new AgeDisplay(new ItemStackTemplate(icon.asItem()), title, description);
             return this;
         }
 
         public AgeEntry build(Identifier id) {
-            return new AgeEntry(id, new Age(
-                    this.items,
-                    this.dimensions,
-                    Optional.ofNullable(this.parent),
-                    this.requiresParent,
-                    this.criteria,
-                    this.requirements,
-                    this.display
-            ));
+            return new AgeEntry(
+                    id,
+                    new Age(
+                            this.items,
+                            this.dimensions,
+                            Optional.ofNullable(this.itemTraits),
+                            Optional.ofNullable(this.parent),
+                            this.requiresParent,
+                            this.criteria,
+                            this.requirements,
+                            this.display
+                    )
+            );
         }
 
         public AgeEntry build(Consumer<AgeEntry> exporter, Identifier id) {

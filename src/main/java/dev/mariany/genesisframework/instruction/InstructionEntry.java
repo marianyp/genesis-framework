@@ -1,9 +1,15 @@
 package dev.mariany.genesisframework.instruction;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import net.minecraft.advancement.*;
-import net.minecraft.util.Identifier;
 
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementRequirements;
+import net.minecraft.advancements.AdvancementRewards;
+import net.minecraft.advancements.AdvancementType;
+import net.minecraft.advancements.triggers.Criterion;
+import net.minecraft.advancements.DisplayInfo;
+import net.minecraft.resources.Identifier;
 import java.util.Map;
 import java.util.Optional;
 
@@ -14,7 +20,7 @@ public class InstructionEntry {
 
     private final Identifier id;
     private final Instruction instruction;
-    private final AdvancementEntry advancementEntry;
+    private final AdvancementHolder advancementEntry;
 
     public InstructionEntry(Identifier id, Instruction instruction) {
         this.id = id;
@@ -22,8 +28,8 @@ public class InstructionEntry {
         this.advancementEntry = createAdvancementEntry(id, instruction);
     }
 
-    private AdvancementEntry createAdvancementEntry(Identifier id, Instruction instruction) {
-        return new AdvancementEntry(getAdvancementId(id), createAdvancement(instruction));
+    private AdvancementHolder createAdvancementEntry(Identifier id, Instruction instruction) {
+        return new AdvancementHolder(getAdvancementId(id), createAdvancement(instruction));
     }
 
     public static Advancement createAdvancement(Instruction instruction) {
@@ -31,7 +37,7 @@ public class InstructionEntry {
                 .map(InstructionEntry::getAdvancementId)
                 .orElse(ROOT_ADVANCEMENT_ID);
 
-        Map<String, AdvancementCriterion<?>> criteria = instruction.criteria();
+        Map<String, Criterion<?>> criteria = instruction.criteria();
 
         AdvancementRequirements requirements = instruction.requirements().isEmpty() ?
                 AdvancementRequirements.allOf(criteria.keySet()) :
@@ -40,14 +46,14 @@ public class InstructionEntry {
         return new Advancement(
                 Optional.of(parent),
                 createAdvancementDisplay(instruction),
-                AdvancementRewards.NONE,
+                AdvancementRewards.EMPTY,
                 criteria,
                 requirements,
                 false
         );
     }
 
-    private static Optional<AdvancementDisplay> createAdvancementDisplay(Instruction instruction) {
+    private static Optional<DisplayInfo> createAdvancementDisplay(Instruction instruction) {
         Optional<InstructionDisplay> optionalInstructionDisplay = instruction.display();
 
         if (optionalInstructionDisplay.isEmpty()) {
@@ -56,12 +62,12 @@ public class InstructionEntry {
 
         InstructionDisplay instructionDisplay = optionalInstructionDisplay.get();
 
-        return Optional.of(new AdvancementDisplay(
+        return Optional.of(new DisplayInfo(
                 instructionDisplay.icon(),
                 instructionDisplay.title(),
                 instructionDisplay.description(),
                 Optional.empty(),
-                AdvancementFrame.TASK,
+                AdvancementType.TASK,
                 false,
                 false,
                 false
@@ -69,7 +75,7 @@ public class InstructionEntry {
     }
 
     public static Identifier getAdvancementId(Identifier id) {
-        return id.withPrefixedPath(ADVANCEMENT_PREFIX);
+        return id.withPrefix(ADVANCEMENT_PREFIX);
     }
 
     public Identifier getId() {
@@ -80,7 +86,7 @@ public class InstructionEntry {
         return this.instruction;
     }
 
-    public AdvancementEntry getAdvancementEntry() {
+    public AdvancementHolder getAdvancementEntry() {
         return this.advancementEntry;
     }
 }

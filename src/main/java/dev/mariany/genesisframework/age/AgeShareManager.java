@@ -4,44 +4,104 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
-import net.minecraft.scoreboard.Team;
+import dev.mariany.genesisframework.gamerule.GFGameRules;
+import net.fabricmc.fabric.api.gamerule.v1.GameRuleEvents;
+import net.fabricmc.fabric.api.networking.v1.PacketSender;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.PlayerManager;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.PersistentState;
-import net.minecraft.world.PersistentStateManager;
-import net.minecraft.world.PersistentStateType;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.server.players.PlayerList;
+import net.minecraft.util.StringRepresentable;
+import net.minecraft.util.datafix.DataFixTypes;
+import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
+import net.minecraft.world.level.storage.SavedDataStorage;
+import net.minecraft.world.scores.PlayerTeam;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class AgeShareManager extends PersistentState {
-    private static final PersistentStateType<AgeShareManager> STATE_TYPE = new PersistentStateType<>(
-            "ages",
-            context -> new AgeShareManager(),
-            context -> Packed.CODEC.xmap(AgeShareManager::new, AgeShareManager::pack),
-            null
+public class AgeShareManager extends SavedData {
+    private static final SavedDataType<AgeShareManager> STATE_TYPE = new SavedDataType<>(
+            GenesisFramework.id("ages"),
+            AgeShareManager::new,
+            Packed.CODEC.xmap(AgeShareManager::new, AgeShareManager::pack),
+            DataFixTypes.LEVEL
     );
 
     private final Set<Identifier> globalAges = new HashSet<>();
     private final Map<String, Set<Identifier>> teamAges = new HashMap<>();
 
     public AgeShareManager() {
-        this.markDirty();
+        this.setDirty();
     }
 
     public AgeShareManager(Packed packed) {
         this.unpack(packed);
     }
 
+    public static void bootstrap() {
+        GenesisFramework.bootstrapLog("Age Share Manager");
+        ServerPlayConnectionEvents.JOIN.register(AgeShareManager::onPlayerJoin);
+        GameRuleEvents.changeCallback(GFGameRules.AGE_SHARING).register(AgeShareManager::onGameRuleChange);
+    }
+
+    public static void onPlayerJoin(
+            ServerGamePacketListenerImpl serverPlayNetworkHandler,
+            PacketSender packetSender,
+            MinecraftServer server
+    ) {
+        ServerPlayer serverPlayer = serverPlayNetworkHandler.player;
+        GenesisFramework.LOGGER.info("Preparing to apply shared ages to {}", serverPlayer);
+        getServerState(server).applySharedAges(serverPlayer);
+    }
+
+    private static void onGameRuleChange(AgeSharingOption ageSharingOption, MinecraftServer server) {
+        if (ageSharingOption == AgeSharingOption.DISABLED) {
+            return;
+        }
+
+        AgeShareManager ageShareManager = getServerState(server);
+        Collection<ServerPlayer> players = PlayerLookup.all(server);
+
+        GenesisFramework.LOGGER.info("Preparing to apply shared ages to {} players", players.size());
+
+        for (ServerPlayer player : players) {
+            ageShareManager.applySharedAges(player, ageSharingOption);
+        }
+    }
+
+    public static void onAdvancementAwarded(ServerPlayer player, AgeEntry ageEntry) {
+        ServerLevel serverLevel = player.level();
+        MinecraftServer server = serverLevel.getServer();
+        GameRules gameRules = server.getGameRules();
+        AgeSharingOption ageSharingOption = gameRules.get(GFGameRules.AGE_SHARING);
+
+        if (ageSharingOption == AgeSharingOption.DISABLED) {
+            return;
+        }
+
+        AgeShareManager ageShareManager = getServerState(server);
+
+        if (ageSharingOption == AgeSharingOption.TEAMS) {
+            ageShareManager.shareWithTeam(player, ageEntry);
+        } else {
+            ageShareManager.shareWithServer(server, ageEntry);
+        }
+    }
+
     public static AgeShareManager getServerState(MinecraftServer server) {
-        PersistentStateManager persistentStateManager = server.getOverworld().getPersistentStateManager();
+        SavedDataStorage persistentStateManager = server.overworld().getDataStorage();
 
-        AgeShareManager state = persistentStateManager.getOrCreate(STATE_TYPE);
+        AgeShareManager state = persistentStateManager.computeIfAbsent(STATE_TYPE);
 
-        state.markDirty();
+        state.setDirty();
 
         return state;
     }
@@ -54,62 +114,60 @@ public class AgeShareManager extends PersistentState {
             this.globalAges.clear();
         } else {
             cleared = this.teamAges.values().stream()
-                    .mapToInt(Set::size)
-                    .sum();
+                                   .mapToInt(Set::size)
+                                   .sum();
 
             this.teamAges.clear();
         }
 
-        this.markDirty();
+        this.setDirty();
 
         return cleared;
     }
 
-    public void applySharedAges(ServerPlayerEntity serverPlayer) {
-        AgeManager ageManager = AgeManager.getInstance();
-        Team team = serverPlayer.getScoreboardTeam();
+    public void applySharedAges(ServerPlayer serverPlayer) {
+        ServerLevel serverLevel = serverPlayer.level();
+        MinecraftServer server = serverLevel.getServer();
+        GameRules gameRules = server.getGameRules();
+        AgeShareManager.AgeSharingOption ageSharingOption = gameRules.get(GFGameRules.AGE_SHARING);
+        applySharedAges(serverPlayer, ageSharingOption);
+    }
+
+    private void applySharedAges(ServerPlayer serverPlayer, AgeShareManager.AgeSharingOption ageSharingOption) {
+        if (ageSharingOption == AgeShareManager.AgeSharingOption.DISABLED) {
+            return;
+        }
+
+        ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
         Set<Identifier> agesToApply = new HashSet<>(this.globalAges);
 
-        if (team != null) {
-            Set<Identifier> teamAges = this.teamAges.getOrDefault(team.getName(), new HashSet<>());
-            agesToApply.addAll(teamAges);
+        if (ageSharingOption == AgeSharingOption.TEAMS) {
+            PlayerTeam team = serverPlayer.getTeam();
+
+            if (team != null) {
+                Set<Identifier> teamAges = this.teamAges.getOrDefault(team.getName(), new HashSet<>());
+                agesToApply.addAll(teamAges);
+            }
         }
 
         for (Identifier ageId : agesToApply) {
-            ageManager.get(ageId).ifPresent(ageEntry -> progressPlayerToAge(serverPlayer, ageEntry));
+            serverAgeManager.get(ageId).ifPresent(ageEntry -> progressPlayerToAge(serverPlayer, ageEntry));
         }
-    }
-
-    private static List<ServerPlayerEntity> getSharingPlayers(MinecraftServer server) {
-        return getSharingPlayers(server, null);
-    }
-
-    private static List<ServerPlayerEntity> getSharingPlayers(MinecraftServer server, @Nullable Team team) {
-        if (team != null) {
-            PlayerManager playerManager = server.getPlayerManager();
-            List<ServerPlayerEntity> players = playerManager.getPlayerList();
-
-            return players.stream()
-                    .filter(serverPlayer -> serverPlayer.getScoreboardTeam() == team)
-                    .toList();
-        }
-
-        return server.getPlayerManager().getPlayerList();
     }
 
     public void shareWithServer(MinecraftServer server, AgeEntry ageEntry) {
         this.globalAges.add(ageEntry.getId());
-        this.markDirty();
+        this.setDirty();
 
-        List<ServerPlayerEntity> sharingPlayers = getSharingPlayers(server);
+        List<ServerPlayer> sharingPlayers = getSharingPlayers(server);
 
         GenesisFramework.LOGGER.info("Preparing to share ages with {} players", sharingPlayers.size());
 
         progressPlayersToAge(sharingPlayers, ageEntry);
     }
 
-    public void shareWithTeam(ServerPlayerEntity player, AgeEntry ageEntry) {
-        Team team = player.getScoreboardTeam();
+    public void shareWithTeam(ServerPlayer player, AgeEntry ageEntry) {
+        PlayerTeam team = player.getTeam();
 
         if (team != null) {
             String teamName = team.getName();
@@ -117,33 +175,54 @@ public class AgeShareManager extends PersistentState {
             ages.add(ageEntry.getId());
 
             teamAges.put(teamName, ages);
-            this.markDirty();
+            this.setDirty();
 
-            List<ServerPlayerEntity> sharingPlayers = getSharingPlayers(player.getEntityWorld().getServer(), team);
+            List<ServerPlayer> sharingPlayers = getSharingPlayers(player.level().getServer(), team);
 
-            GenesisFramework.LOGGER.info("Preparing to shared ages with {} players on team {}", sharingPlayers.size(), teamName);
+            GenesisFramework.LOGGER.info(
+                    "Preparing to shared ages with {} players on team {}",
+                    sharingPlayers.size(),
+                    teamName
+            );
 
             progressPlayersToAge(sharingPlayers, ageEntry);
         }
     }
 
-    public static void progressPlayerToAge(ServerPlayerEntity player, AgeEntry ageEntry) {
+    private static List<ServerPlayer> getSharingPlayers(MinecraftServer server) {
+        return getSharingPlayers(server, null);
+    }
+
+    private static List<ServerPlayer> getSharingPlayers(MinecraftServer server, @Nullable PlayerTeam team) {
+        if (team != null) {
+            PlayerList playerManager = server.getPlayerList();
+            List<ServerPlayer> players = playerManager.getPlayers();
+
+            return players.stream()
+                          .filter(serverPlayer -> serverPlayer.getTeam() == team)
+                          .toList();
+        }
+
+        return server.getPlayerList().getPlayers();
+    }
+
+    public static void progressPlayerToAge(ServerPlayer player, AgeEntry ageEntry) {
         progressPlayersToAge(List.of(player), ageEntry);
     }
 
-    public static int progressPlayersToAge(Collection<ServerPlayerEntity> players, AgeEntry ageEntry) {
+    public static int progressPlayersToAge(Collection<ServerPlayer> players, AgeEntry ageEntry) {
         Optional<Identifier> parentAgeId = ageEntry.getAge().parent();
 
         int success = 0;
 
         if (parentAgeId.isPresent() && ageEntry.getAge().requiresParent()) {
-            AgeManager ageManager = AgeManager.getInstance();
-            Optional<AgeEntry> optionalParentAgeEntry = ageManager.get(parentAgeId.get());
+            ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
+            Optional<AgeEntry> optionalParentAgeEntry = serverAgeManager.get(parentAgeId.get());
             optionalParentAgeEntry.ifPresent(entry -> progressPlayersToAge(players, entry));
         }
 
-        for (ServerPlayerEntity player : players) {
-            if (AdvancementHelper.giveAdvancement(player, ageEntry.getAdvancementEntry())) {
+        for (ServerPlayer player : players) {
+            if (AdvancementHelper.giveAdvancement(player, ageEntry.getAdvancementHolder())) {
                 ++success;
             }
         }
@@ -159,12 +238,15 @@ public class AgeShareManager extends PersistentState {
     public Packed pack() {
         List<Identifier> globalAges = this.globalAges.stream().toList();
 
-        Map<String, List<Identifier>> teamAges = this.teamAges.entrySet()
+        Map<String, List<Identifier>> teamAges = this.teamAges
+                .entrySet()
                 .stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> new ArrayList<>(entry.getValue())
-                ));
+                .collect(
+                        Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> new ArrayList<>(entry.getValue())
+                        )
+                );
 
 
         return new Packed(
@@ -179,14 +261,41 @@ public class AgeShareManager extends PersistentState {
     ) {
         public static final Codec<Packed> CODEC = RecordCodecBuilder.create(
                 instance -> instance.group(
-                                Identifier.CODEC.listOf()
-                                        .optionalFieldOf("GlobalAges", List.of())
-                                        .forGetter(Packed::globalAges),
-                                Codec.unboundedMap(Codec.STRING, Identifier.CODEC.listOf())
-                                        .optionalFieldOf("TeamAges", Map.of())
-                                        .forGetter(Packed::teamAges)
-                        )
-                        .apply(instance, Packed::new)
+                                            Identifier.CODEC
+                                                    .listOf()
+                                                    .optionalFieldOf("GlobalAges", List.of())
+                                                    .forGetter(Packed::globalAges),
+                                            Codec.unboundedMap(Codec.STRING, Identifier.CODEC.listOf())
+                                                 .optionalFieldOf("TeamAges", Map.of())
+                                                 .forGetter(Packed::teamAges)
+                                    )
+                                    .apply(instance, Packed::new)
         );
+    }
+
+    public enum AgeSharingOption implements StringRepresentable {
+        DISABLED("disabled"),
+        TEAMS("teams"),
+        EVERYONE("everyone");
+
+        private final String name;
+
+        AgeSharingOption(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        @Override
+        public String getSerializedName() {
+            return this.getName();
+        }
+
+        @Override
+        public String toString() {
+            return this.name;
+        }
     }
 }

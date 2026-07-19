@@ -1,9 +1,9 @@
 package dev.mariany.genesisframework.advancement.criterion;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import net.minecraft.advancement.criterion.Criterion;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
+import net.minecraft.advancements.triggers.CriterionTrigger;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 public class GFCriteria {
     public static final CompleteTrialSpawnerCriteria COMPLETE_TRIAL_SPAWNER_ADVANCEMENT = register(
@@ -15,11 +15,11 @@ public class GFCriteria {
             new OpenAdvancementTabCriteria()
     );
 
-    public static <T extends Criterion<?>> T register(String name, T criterion) {
-        return Registry.register(Registries.CRITERION, GenesisFramework.id(name), criterion);
+    public static <T extends CriterionTrigger<?>> T register(String name, T criterion) {
+        return Registry.register(BuiltInRegistries.TRIGGER_TYPES, GenesisFramework.id(name), criterion);
     }
 
     public static void bootstrap() {
-        GenesisFramework.LOGGER.info("Registering Criteria for " + GenesisFramework.MOD_ID);
+        GenesisFramework.bootstrapLog("Criteria");
     }
 }

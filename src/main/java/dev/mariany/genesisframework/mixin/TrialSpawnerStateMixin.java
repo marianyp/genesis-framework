@@ -2,13 +2,13 @@ package dev.mariany.genesisframework.mixin;
 
 import dev.mariany.genesisframework.advancement.criterion.GFCriteria;
 import dev.mariany.genesisframework.mixin.accessor.TrialSpawnerDataAccessor;
-import net.minecraft.block.enums.TrialSpawnerState;
-import net.minecraft.block.spawner.TrialSpawnerData;
-import net.minecraft.block.spawner.TrialSpawnerLogic;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.entity.trialspawner.TrialSpawner;
+import net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerState;
+import net.minecraft.world.level.block.entity.trialspawner.TrialSpawnerStateData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,16 +24,19 @@ public class TrialSpawnerStateMixin {
      * Triggers the {@link GFCriteria#COMPLETE_TRIAL_SPAWNER_ADVANCEMENT} criteria when removing player from Trial Spawner state.
      */
     @Inject(
-            method = "tick",
+            method = "tickAndGetNext",
             at = @At(
                     value = "INVOKE",
                     target = "Ljava/util/Set;remove(Ljava/lang/Object;)Z"
             )
     )
     private void onEjectReward(
-            BlockPos pos, TrialSpawnerLogic logic, ServerWorld world, CallbackInfoReturnable<TrialSpawnerState> cir
+            BlockPos pos,
+            TrialSpawner logic,
+            ServerLevel level,
+            CallbackInfoReturnable<TrialSpawnerState> cir
     ) {
-        TrialSpawnerData data = logic.getData();
+        TrialSpawnerStateData data = logic.getStateData();
 
         Set<UUID> players = ((TrialSpawnerDataAccessor) data).genesis$players();
         Iterator<UUID> iterator = players.iterator();
@@ -42,9 +45,9 @@ public class TrialSpawnerStateMixin {
             UUID uuid = iterator.next();
             boolean ominous = logic.isOminous();
 
-            PlayerEntity player = world.getPlayerByUuid(uuid);
+            Player player = level.getPlayerByUUID(uuid);
 
-            if (player instanceof ServerPlayerEntity serverPlayer) {
+            if (player instanceof ServerPlayer serverPlayer) {
                 GFCriteria.COMPLETE_TRIAL_SPAWNER_ADVANCEMENT.trigger(serverPlayer, ominous);
             }
         }

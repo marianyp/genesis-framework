@@ -7,37 +7,36 @@ import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
 import dev.mariany.genesisframework.age.Age;
 import dev.mariany.genesisframework.age.AgeEntry;
-import dev.mariany.genesisframework.age.AgeManager;
+import dev.mariany.genesisframework.age.ServerAgeManager;
 import dev.mariany.genesisframework.age.AgeShareManager;
 import dev.mariany.genesisframework.registry.GFRegistryKeys;
-import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.command.argument.RegistryKeyArgumentType;
-import net.minecraft.registry.RegistryKey;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.ResourceKeyArgument;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public class AgeCommand {
     private static final DynamicCommandExceptionType AGE_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(
-            id -> Text.stringifiedTranslatable("genesisframework.age.ageNotFound", id)
+            id -> Component.translatableEscape("genesisframework.age.ageNotFound", id)
     );
 
     public static void register(
-            CommandDispatcher<ServerCommandSource> dispatcher
+            CommandDispatcher<CommandSourceStack> dispatcher
     ) {
         dispatcher.register(
-                CommandManager.literal("age")
-                        .requires(CommandManager.requirePermissionLevel(2))
-                        .then(CommandManager.literal("cache")
-                                .then(CommandManager.literal("clear")
-                                        .then(CommandManager.literal("global")
+                Commands.literal("age")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("cache")
+                                .then(Commands.literal("clear")
+                                        .then(Commands.literal("global")
                                                 .executes(
                                                         context ->
                                                                 executeClearCache(
@@ -45,7 +44,7 @@ public class AgeCommand {
                                                                 )
                                                 )
                                         )
-                                        .then(CommandManager.literal("teams")
+                                        .then(Commands.literal("teams")
                                                 .executes(
                                                         context ->
                                                                 executeClearCache(
@@ -55,16 +54,16 @@ public class AgeCommand {
                                         )
                                 )
                         )
-                        .then(CommandManager.literal("give")
-                                .then(CommandManager.argument("targets", EntityArgumentType.players()).then(
-                                                CommandManager.argument(
+                        .then(Commands.literal("give")
+                                .then(Commands.argument("targets", EntityArgument.players()).then(
+                                                Commands.argument(
                                                                 "age",
-                                                                RegistryKeyArgumentType.registryKey(GFRegistryKeys.AGE)
+                                                                ResourceKeyArgument.key(GFRegistryKeys.AGE)
                                                         )
                                                         .executes(context ->
                                                                 executeGive(
                                                                         context.getSource(),
-                                                                        EntityArgumentType.getPlayers(
+                                                                        EntityArgument.getPlayers(
                                                                                 context,
                                                                                 "targets"
                                                                         ),
@@ -74,16 +73,16 @@ public class AgeCommand {
                                         )
                                 )
                         )
-                        .then(CommandManager.literal("take")
-                                .then(CommandManager.argument("targets", EntityArgumentType.players()).then(
-                                                CommandManager.argument(
+                        .then(Commands.literal("take")
+                                .then(Commands.argument("targets", EntityArgument.players()).then(
+                                                Commands.argument(
                                                                 "age",
-                                                                RegistryKeyArgumentType.registryKey(GFRegistryKeys.AGE)
+                                                                ResourceKeyArgument.key(GFRegistryKeys.AGE)
                                                         )
                                                         .executes(context ->
                                                                 executeTake(
                                                                         context.getSource(),
-                                                                        EntityArgumentType.getPlayers(
+                                                                        EntityArgument.getPlayers(
                                                                                 context,
                                                                                 "targets"
                                                                         ),
@@ -96,25 +95,25 @@ public class AgeCommand {
         );
     }
 
-    private static int executeClearCache(ServerCommandSource source, boolean global) {
-        ServerWorld world = source.getWorld();
-        MinecraftServer server = world.getServer();
+    private static int executeClearCache(CommandSourceStack source, boolean global) {
+        ServerLevel level = source.getLevel();
+        MinecraftServer server = level.getServer();
         AgeShareManager ageShareManager = AgeShareManager.getServerState(server);
 
         int cleared = ageShareManager.clear(global);
 
-        source.sendFeedback(
-                () -> Text.translatable("commands.genesisframework.age.clear", cleared),
+        source.sendSuccess(
+                () -> Component.translatable("commands.genesisframework.age.clear", cleared),
                 true
         );
 
         return 1;
     }
 
-    private static int executeGive(ServerCommandSource source, Collection<ServerPlayerEntity> targets, AgeEntry ageEntry) {
+    private static int executeGive(CommandSourceStack source, Collection<ServerPlayer> targets, AgeEntry ageEntry) {
         int successCount = AgeShareManager.progressPlayersToAge(targets, ageEntry);
 
-        source.sendFeedback(() -> Text.stringifiedTranslatable(
+        source.sendSuccess(() -> Component.translatableEscape(
                         "commands.genesisframework.age.give.success",
                         ageEntry.getId(),
                         successCount
@@ -125,10 +124,10 @@ public class AgeCommand {
         return successCount;
     }
 
-    private static int executeTake(ServerCommandSource source, Collection<ServerPlayerEntity> targets, AgeEntry ageEntry) {
+    private static int executeTake(CommandSourceStack source, Collection<ServerPlayer> targets, AgeEntry ageEntry) {
         int successCount = (int) targets.stream().filter(player -> takeAge(player, ageEntry)).count();
 
-        source.sendFeedback(() -> Text.stringifiedTranslatable(
+        source.sendSuccess(() -> Component.translatableEscape(
                         "commands.genesisframework.age.take.success",
                         ageEntry.getId(),
                         successCount
@@ -139,18 +138,18 @@ public class AgeCommand {
         return successCount;
     }
 
-    private static boolean takeAge(ServerPlayerEntity player, AgeEntry ageEntry) {
-        boolean removed = AdvancementHelper.revokeAdvancement(player, ageEntry.getAdvancementEntry());
+    private static boolean takeAge(ServerPlayer player, AgeEntry ageEntry) {
+        boolean removed = AdvancementHelper.revokeAdvancement(player, ageEntry.getAdvancementHolder());
 
-        List<AgeEntry> children = AgeManager.getInstance()
-                .getAges()
-                .stream()
-                .filter(otherAge ->
+        List<AgeEntry> children = ServerAgeManager.getInstance()
+                                                  .getAges()
+                                                  .stream()
+                                                  .filter(otherAge ->
                         otherAge.getAge().requiresParent() && otherAge.getAge().parent()
                                 .map(parentId -> parentId.equals(ageEntry.getId()))
                                 .orElse(false)
                 )
-                .toList();
+                                                  .toList();
 
         for (AgeEntry child : children) {
             removed = takeAge(player, child) || removed;
@@ -159,17 +158,17 @@ public class AgeCommand {
         return removed;
     }
 
-    private static AgeEntry getAgeEntry(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
-        RegistryKey<Age> registryKey = RegistryKeyArgumentType.getKey(
+    private static AgeEntry getAgeEntry(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ResourceKey<Age> registryKey = ResourceKeyArgument.getRegistryKey(
                 context,
                 "age",
                 GFRegistryKeys.AGE,
                 AGE_NOT_FOUND_EXCEPTION
         );
-        Optional<AgeEntry> optionalAgeEntry = AgeManager.getInstance().get(registryKey.getValue());
+        Optional<AgeEntry> optionalAgeEntry = ServerAgeManager.getInstance().get(registryKey.identifier());
 
         if (optionalAgeEntry.isEmpty()) {
-            throw AGE_NOT_FOUND_EXCEPTION.create(registryKey.getValue());
+            throw AGE_NOT_FOUND_EXCEPTION.create(registryKey.identifier());
         } else {
             return optionalAgeEntry.get();
         }

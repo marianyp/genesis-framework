@@ -1,25 +1,25 @@
 package dev.mariany.genesisframework.instruction;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import net.minecraft.advancement.AdvancementEntry;
-import net.minecraft.util.Identifier;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.resources.Identifier;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class InstructionManager {
-    private static final InstructionManager INSTANCE = new InstructionManager();
+public class ServerInstructionManager {
+    private static final ServerInstructionManager INSTANCE = new ServerInstructionManager();
 
     private final Map<Identifier, InstructionEntry> instructions = new Object2ObjectOpenHashMap<>();
 
-    public static InstructionManager getInstance() {
+    public static ServerInstructionManager getInstance() {
         return INSTANCE;
     }
 
-    public Optional<InstructionEntry> find(AdvancementEntry advancementEntry) {
-        return instructions
+    public Optional<InstructionEntry> find(AdvancementHolder advancementEntry) {
+        return this.instructions
                 .values()
                 .stream()
                 .filter(
@@ -35,8 +35,8 @@ public class InstructionManager {
 
     public List<Identifier> getInstructionAdvancementIds() {
         return this.instructions.values()
-                .stream()
-                .map(instructionEntry -> instructionEntry.getAdvancementEntry().id()).toList();
+                                .stream()
+                                .map(instructionEntry -> instructionEntry.getAdvancementEntry().id()).toList();
     }
 
     protected void add(InstructionEntry instructionEntry) {

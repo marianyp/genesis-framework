@@ -2,45 +2,65 @@ package dev.mariany.genesisframework.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import dev.mariany.genesisframework.GenesisFramework;
+import com.mojang.logging.LogUtils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 
-public class ConfigHandler {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final File CONFIG_FILE = new File("config/genesis-framework.json5");
-    private static GFConfig config = new GFConfig();
+public class ConfigHandler<T> {
+    protected static final Logger LOGGER = LogUtils.getLogger();
+    protected static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static GFConfig getConfig() {
-        return config;
+    protected final File file;
+    protected final T defaultConfig;
+
+    @Nullable
+    protected T config;
+
+    public ConfigHandler(String id, @NotNull T defaultConfig) {
+        this.defaultConfig = defaultConfig;
+        this.config = defaultConfig;
+        this.file = new File("config/" + id + ".json5");
     }
 
-    public static void loadConfig() {
-        if (CONFIG_FILE.exists()) {
-            try (FileReader reader = new FileReader(CONFIG_FILE)) {
-                config = GSON.fromJson(reader, GFConfig.class);
+    public T getConfig() {
+        if (this.config == null) {
+            return this.defaultConfig;
+        }
+
+        return this.config;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void loadConfig() {
+        if (this.file.exists()) {
+            try (FileReader reader = new FileReader(this.file)) {
+                this.config = (T) GSON.fromJson(reader, this.defaultConfig.getClass());
             } catch (IOException error) {
-                GenesisFramework.LOGGER.error("Failed to load config: {}", error.getMessage());
+                this.config = this.defaultConfig;
+                LOGGER.error("Failed to load config: {}", error.getMessage());
             }
         }
 
-        saveConfig();
+        this.saveConfig();
     }
 
-    private static void saveConfig() {
+    public void saveConfig() {
         try {
-            if (CONFIG_FILE.getParentFile().mkdirs()) {
-                GenesisFramework.LOGGER.info("Creating parent directory for {} config", GenesisFramework.MOD_ID);
+            if (this.file.getParentFile().mkdirs()) {
+                LOGGER.info("Creating parent directory for config");
             }
 
-            try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
-                GSON.toJson(config, writer);
+            try (FileWriter writer = new FileWriter(this.file)) {
+                GSON.toJson(this.config, writer);
             }
         } catch (IOException error) {
-            GenesisFramework.LOGGER.error("Failed to save config: {}", error.getMessage());
+            LOGGER.error("Failed to save config: {}", error.getMessage());
         }
     }
 }

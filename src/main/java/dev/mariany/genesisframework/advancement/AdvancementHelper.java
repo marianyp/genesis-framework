@@ -1,36 +1,36 @@
 package dev.mariany.genesisframework.advancement;
 
-import net.minecraft.advancement.AdvancementEntry;
-import net.minecraft.advancement.AdvancementProgress;
-import net.minecraft.advancement.PlayerAdvancementTracker;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementProgress;
+import net.minecraft.server.PlayerAdvancements;
+import net.minecraft.server.level.ServerPlayer;
 
 public class AdvancementHelper {
-    public static boolean giveAdvancement(ServerPlayerEntity player, AdvancementEntry advancementEntry) {
-        PlayerAdvancementTracker tracker = player.getAdvancementTracker();
-        AdvancementProgress progress = tracker.getProgress(advancementEntry);
+    public static boolean giveAdvancement(ServerPlayer player, AdvancementHolder advancementEntry) {
+        PlayerAdvancements tracker = player.getAdvancements();
+        AdvancementProgress progress = tracker.getOrStartProgress(advancementEntry);
 
         if (progress.isDone()) {
             return false;
         }
 
-        for (String criterion : progress.getUnobtainedCriteria()) {
-            tracker.grantCriterion(advancementEntry, criterion);
+        for (String criterion : progress.getRemainingCriteria()) {
+            tracker.award(advancementEntry, criterion);
         }
 
         return true;
     }
 
-    public static boolean revokeAdvancement(ServerPlayerEntity player, AdvancementEntry advancementEntry) {
-        PlayerAdvancementTracker tracker = player.getAdvancementTracker();
-        AdvancementProgress progress = tracker.getProgress(advancementEntry);
+    public static boolean revokeAdvancement(ServerPlayer player, AdvancementHolder advancementEntry) {
+        PlayerAdvancements tracker = player.getAdvancements();
+        AdvancementProgress progress = tracker.getOrStartProgress(advancementEntry);
 
         if (!progress.isDone()) {
             return false;
         }
 
-        for (String criterion : progress.getObtainedCriteria()) {
-            tracker.revokeCriterion(advancementEntry, criterion);
+        for (String criterion : progress.getCompletedCriteria()) {
+            tracker.revoke(advancementEntry, criterion);
         }
 
         return true;

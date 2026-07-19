@@ -3,29 +3,29 @@ package dev.mariany.genesisframework.component;
 import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.age.Age;
 import dev.mariany.genesisframework.registry.GFRegistryKeys;
-import net.minecraft.component.ComponentType;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKey;
+import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceKey;
 
 import java.util.List;
 import java.util.function.UnaryOperator;
 
 public class GFComponentTypes {
-    public static final ComponentType<List<RegistryKey<Age>>> AGES = register(
+    public static final DataComponentType<List<ResourceKey<Age>>> AGES = register(
             "ages",
-            builder -> builder.codec(RegistryKey.createCodec(GFRegistryKeys.AGE).listOf()
-            ).cache()
+            builder -> builder.persistent(ResourceKey.codec(GFRegistryKeys.AGE).listOf()
+            ).cacheEncoding()
     );
 
-    private static <T> ComponentType<T> register(String id, UnaryOperator<ComponentType.Builder<T>> builderOperator) {
+    private static <T> DataComponentType<T> register(String id, UnaryOperator<DataComponentType.Builder<T>> builderOperator) {
         return Registry.register(
-                Registries.DATA_COMPONENT_TYPE,
-                GenesisFramework.id(id), builderOperator.apply(ComponentType.builder()).build()
+                BuiltInRegistries.DATA_COMPONENT_TYPE,
+                GenesisFramework.id(id), builderOperator.apply(DataComponentType.builder()).build()
         );
     }
 
     public static void bootstrap() {
-        GenesisFramework.LOGGER.info("Registering Component Types for " + GenesisFramework.MOD_ID);
+        GenesisFramework.bootstrapLog("Component Types");
     }
 }

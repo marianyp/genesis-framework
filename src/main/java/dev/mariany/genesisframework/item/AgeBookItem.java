@@ -4,54 +4,54 @@ import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
 import dev.mariany.genesisframework.age.Age;
 import dev.mariany.genesisframework.age.AgeEntry;
-import dev.mariany.genesisframework.age.AgeManager;
+import dev.mariany.genesisframework.age.ServerAgeManager;
 import dev.mariany.genesisframework.component.GFComponentTypes;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.stat.Stats;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.world.World;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.stats.Stats;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
 import java.util.List;
 import java.util.Optional;
 
 public class AgeBookItem extends Item {
-    public AgeBookItem(Settings settings) {
+    public AgeBookItem(Properties settings) {
         super(settings);
     }
 
     @Override
-    public ActionResult use(World world, PlayerEntity player, Hand hand) {
-        ItemStack itemStack = player.getStackInHand(hand);
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+        ItemStack itemStack = player.getItemInHand(hand);
 
-        List<RegistryKey<Age>> ages = itemStack.getOrDefault(GFComponentTypes.AGES, List.of());
-        itemStack.decrementUnlessCreative(1, player);
+        List<ResourceKey<Age>> ages = itemStack.getOrDefault(GFComponentTypes.AGES, List.of());
+        itemStack.consume(1, player);
 
         if (ages.isEmpty()) {
-            return ActionResult.FAIL;
+            return InteractionResult.FAIL;
         }
 
-        if (player instanceof ServerPlayerEntity serverPlayer) {
-            AgeManager ageManager = AgeManager.getInstance();
+        if (player instanceof ServerPlayer serverPlayer) {
+            ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
 
-            for (RegistryKey<Age> ageKey : ages) {
-                Optional<AgeEntry> optionalAgeEntry = ageManager.get(ageKey.getValue());
+            for (ResourceKey<Age> ageKey : ages) {
+                Optional<AgeEntry> optionalAgeEntry = serverAgeManager.get(ageKey.identifier());
 
                 if (optionalAgeEntry.isPresent()) {
                     AgeEntry ageEntry = optionalAgeEntry.get();
-                    AdvancementHelper.giveAdvancement(serverPlayer, ageEntry.getAdvancementEntry());
+                    AdvancementHelper.giveAdvancement(serverPlayer, ageEntry.getAdvancementHolder());
                 } else {
                     GenesisFramework.LOGGER.error("Invalid age: {}", ageKey);
                 }
             }
 
-            player.incrementStat(Stats.USED.getOrCreateStat(this));
+            player.awardStat(Stats.ITEM_USED.get(this));
         }
 
-        return ActionResult.SUCCESS;
+        return InteractionResult.SUCCESS;
     }
 }

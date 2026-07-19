@@ -1,13 +1,11 @@
 package dev.mariany.genesisframework.mixin.accessor;
 
-import net.minecraft.client.toast.ToastManager;
+import net.minecraft.client.gui.components.toasts.ToastManager;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.gen.Accessor;
-
-import java.util.List;
+import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(ToastManager.class)
 public interface ToastManagerAccessor {
-    @Accessor("visibleEntries")
-    List<ToastManager.Entry<?>> genesis$visibleEntries();
+    @Invoker("findFreeSlotsIndex")
+    int genesis$findFreeSlotsIndex(int requiredCount);
 }

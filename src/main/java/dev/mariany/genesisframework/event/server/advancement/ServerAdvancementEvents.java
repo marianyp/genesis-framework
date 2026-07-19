@@ -2,9 +2,8 @@ package dev.mariany.genesisframework.event.server.advancement;
 
 import net.fabricmc.fabric.api.event.Event;
 import net.fabricmc.fabric.api.event.EventFactory;
-import net.minecraft.advancement.Advancement;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.advancements.Advancement;
+import net.minecraft.resources.Identifier;
 import java.util.Map;
 
 public class ServerAdvancementEvents {

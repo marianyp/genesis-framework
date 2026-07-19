@@ -2,16 +2,16 @@ package dev.mariany.genesisframework.age;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextCodecs;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentSerialization;
+import net.minecraft.world.item.ItemStackTemplate;
 
-public record AgeDisplay(ItemStack icon, Text title, Text description) {
+public record AgeDisplay(ItemStackTemplate icon, Component title, Component description) {
     public static final Codec<AgeDisplay> CODEC = RecordCodecBuilder.create(
             instance -> instance.group(
-                            ItemStack.VALIDATED_CODEC.fieldOf("icon").forGetter(AgeDisplay::icon),
-                            TextCodecs.CODEC.fieldOf("title").forGetter(AgeDisplay::title),
-                            TextCodecs.CODEC.optionalFieldOf("description", Text.empty()).forGetter(AgeDisplay::description)
+                            ItemStackTemplate.CODEC.fieldOf("icon").forGetter(AgeDisplay::icon),
+                            ComponentSerialization.CODEC.fieldOf("title").forGetter(AgeDisplay::title),
+                            ComponentSerialization.CODEC.optionalFieldOf("description", Component.empty()).forGetter(AgeDisplay::description)
                     )
                     .apply(instance, AgeDisplay::new)
     );

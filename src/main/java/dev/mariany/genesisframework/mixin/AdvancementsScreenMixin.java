@@ -1,13 +1,13 @@
 package dev.mariany.genesisframework.mixin;
 
 import dev.mariany.genesisframework.age.AgeEntry;
-import dev.mariany.genesisframework.config.ConfigHandler;
+import dev.mariany.genesisframework.client.GFClient;
 import dev.mariany.genesisframework.instruction.InstructionEntry;
-import net.minecraft.advancement.AdvancementEntry;
-import net.minecraft.advancement.PlacedAdvancement;
-import net.minecraft.client.gui.screen.advancement.AdvancementTab;
-import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
-import net.minecraft.client.network.ClientAdvancementManager;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementNode;
+import net.minecraft.client.gui.screens.advancements.AdvancementTab;
+import net.minecraft.client.gui.screens.advancements.AdvancementsScreen;
+import net.minecraft.client.multiplayer.ClientAdvancements;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,39 +23,42 @@ import java.util.Optional;
 public abstract class AdvancementsScreenMixin {
     @Shadow
     @Final
-    private Map<AdvancementEntry, AdvancementTab> tabs;
+    private Map<AdvancementHolder, AdvancementTab> tabs;
 
     @Shadow
-    public abstract void selectTab(@Nullable AdvancementEntry advancement);
+    public abstract void onSelectedTabChanged(@Nullable AdvancementHolder advancement);
 
     @Shadow
     @Final
-    private ClientAdvancementManager advancementHandler;
+    private ClientAdvancements advancements;
 
     /**
      * Start on Age tab if advancement present.
      */
     @Inject(method = "init", at = @At(value = "TAIL"))
     public void injectInit(CallbackInfo ci) {
-        if (ConfigHandler.getConfig().alwaysStartOnAgesAdvancementScreen) {
-            Optional<AdvancementEntry> optionalAgeRoot = this.tabs.keySet()
-                    .stream()
-                    .filter(advancementEntry -> advancementEntry.id().equals(AgeEntry.ROOT_ADVANCEMENT_ID))
-                    .findFirst();
-
-            optionalAgeRoot.ifPresent(advancementEntry -> {
-                this.selectTab(advancementEntry);
-                this.advancementHandler.selectTab(advancementEntry, true);
-            });
+        if (!GFClient.getConfig().advancementScreenStartsOnAges) {
+            return;
         }
+
+        Optional<AdvancementHolder> optionalAgeRoot = this.tabs
+                .keySet()
+                .stream()
+                .filter(AgeEntry::isRoot)
+                .findFirst();
+
+        optionalAgeRoot.ifPresent(advancementEntry -> {
+            this.onSelectedTabChanged(advancementEntry);
+            this.advancements.setSelectedTab(advancementEntry, true);
+        });
     }
 
     /**
      * Prevents instruction tab from being added.
      */
-    @Inject(method = "onRootAdded", at = @At(value = "HEAD"), cancellable = true)
-    public void injectOnRootAdded(PlacedAdvancement root, CallbackInfo ci) {
-        if (root.getAdvancementEntry().id().equals(InstructionEntry.ROOT_ADVANCEMENT_ID)) {
+    @Inject(method = "onAddAdvancementRoot", at = @At(value = "HEAD"), cancellable = true)
+    public void injectOnRootAdded(AdvancementNode root, CallbackInfo ci) {
+        if (root.holder().id().equals(InstructionEntry.ROOT_ADVANCEMENT_ID)) {
             ci.cancel();
         }
     }

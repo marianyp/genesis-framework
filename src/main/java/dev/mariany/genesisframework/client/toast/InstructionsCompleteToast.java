@@ -4,16 +4,15 @@ import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.sound.GFSoundEvents;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.toast.Toast;
-import net.minecraft.client.toast.ToastManager;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.text.Text;
-import net.minecraft.util.Colors;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.toasts.Toast;
+import net.minecraft.client.gui.components.toasts.ToastManager;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.CommonColors;
 
 @Environment(EnvType.CLIENT)
 public class InstructionsCompleteToast implements HideableToast {
@@ -32,11 +31,9 @@ public class InstructionsCompleteToast implements HideableToast {
     private static final int TITLE_X = COMPLETE_ICON_SIZE * 2;
     private static final int TITLE_Y = 12;
 
-    private static final Text TITLE = Text.translatable("instruction.genesisframework.complete.title");
+    private static final Component TITLE = Component.translatable("instruction.genesisframework.complete.title");
 
     private final int displayDuration;
-    private long lastTime;
-    private float lastProgress;
     private Visibility visibility = Visibility.SHOW;
 
     public InstructionsCompleteToast() {
@@ -53,7 +50,7 @@ public class InstructionsCompleteToast implements HideableToast {
     }
 
     @Override
-    public Visibility getVisibility() {
+    public Visibility getWantedVisibility() {
         return this.visibility;
     }
 
@@ -64,25 +61,16 @@ public class InstructionsCompleteToast implements HideableToast {
 
     @Override
     public void update(ToastManager manager, long time) {
-        float progress = Math.min((float) time / this.displayDuration, 1.0F);
-
-        this.lastProgress = MathHelper.clampedLerp(
-                this.lastProgress,
-                progress,
-                (time - this.lastTime) / 100F
-        );
-        this.lastTime = time;
-
         if (time >= this.displayDuration) {
             this.visibility = Toast.Visibility.HIDE;
         }
     }
 
     @Override
-    public void draw(DrawContext context, TextRenderer textRenderer, long startTime) {
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, TEXTURE, 0, 0, this.getWidth(), this.getHeight());
+    public void extractRenderState(GuiGraphicsExtractor context, Font textRenderer, long time) {
+        context.blitSprite(RenderPipelines.GUI_TEXTURED, TEXTURE, 0, 0, this.width(), this.height());
 
-        context.drawGuiTexture(
+        context.blitSprite(
                 RenderPipelines.GUI_TEXTURED,
                 INFORMATION_ICON_TEXTURE,
                 -HALF_INFORMATION_ICON_SIZE,
@@ -91,7 +79,7 @@ public class InstructionsCompleteToast implements HideableToast {
                 INFORMATION_ICON_SIZE
         );
 
-        context.drawGuiTexture(
+        context.blitSprite(
                 RenderPipelines.GUI_TEXTURED,
                 COMPLETE_ICON_TEXTURE,
                 HALF_COMPLETE_ICON_SIZE,
@@ -100,14 +88,15 @@ public class InstructionsCompleteToast implements HideableToast {
                 COMPLETE_ICON_SIZE
         );
 
-        context.drawText(textRenderer, TITLE, TITLE_X, TITLE_Y, Colors.PURPLE, false);
+        context.text(textRenderer, TITLE, TITLE_X, TITLE_Y, CommonColors.DARK_PURPLE, false);
 
-        this.drawProgressBar(context);
+        this.drawProgressBar(context, time);
     }
 
-    private void drawProgressBar(DrawContext context) {
-        int barY = this.getHeight() - 4;
-        context.fill(3, barY, 157, barY + 1, Colors.WHITE);
-        context.fill(3, barY, (int) (3.0F + 154.0F * this.lastProgress), barY + 1, BAR_COLOR);
+    private void drawProgressBar(GuiGraphicsExtractor context, long time) {
+        float progress = Math.min((float) time / this.displayDuration, 1);
+        int barY = this.height() - 4;
+        context.fill(3, barY, 157, barY + 1, CommonColors.WHITE);
+        context.fill(3, barY, (int) (3 + 154 * progress), barY + 1, BAR_COLOR);
     }
 }

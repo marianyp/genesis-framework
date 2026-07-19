@@ -1,47 +1,63 @@
 package dev.mariany.genesisframework.age;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import net.minecraft.advancement.*;
-import net.minecraft.advancement.criterion.Criteria;
-import net.minecraft.advancement.criterion.TickCriterion;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementRequirements;
+import net.minecraft.advancements.AdvancementRewards;
+import net.minecraft.advancements.AdvancementType;
+import net.minecraft.advancements.triggers.CriteriaTriggers;
+import net.minecraft.advancements.triggers.Criterion;
+import net.minecraft.advancements.DisplayInfo;
+import net.minecraft.advancements.triggers.PlayerTrigger;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 public class AgeEntry {
-    public static final String ADVANCEMENT_PREFIX = "age/";
+    private static final String ADVANCEMENT_PREFIX = "age/";
     public static final Identifier ROOT_ADVANCEMENT_ID = GenesisFramework.id(ADVANCEMENT_PREFIX + "root");
 
     private final Identifier id;
     private final Age age;
-    private final AdvancementEntry advancementEntry;
+    private final AdvancementHolder advancementHolder;
 
     public AgeEntry(Identifier id, Age age) {
         this.id = id;
         this.age = age;
-        this.advancementEntry = createAdvancementEntry(id, age);
+        this.advancementHolder = createAdvancementEntry(id, age);
     }
 
-    private AdvancementEntry createAdvancementEntry(Identifier id, Age age) {
-        return new AdvancementEntry(getAdvancementId(this), createAdvancement(id, age));
+    public static boolean isRoot(AdvancementHolder advancementHolder) {
+        return advancementHolder.id().equals(AgeEntry.ROOT_ADVANCEMENT_ID);
+    }
+
+    private AdvancementHolder createAdvancementEntry(Identifier id, Age age) {
+        return new AdvancementHolder(getAdvancementId(this), createAdvancement(id, age));
     }
 
     public static Advancement createAdvancement(Identifier id, Age age) {
-        Identifier parent = age.parent()
-                .map(AgeEntry::getAdvancementId)
-                .orElse(AgeEntry.ROOT_ADVANCEMENT_ID);
+        Identifier parent = age.parent().map(AgeEntry::getAdvancementId).orElse(AgeEntry.ROOT_ADVANCEMENT_ID);
 
         boolean alert = true;
 
-        Map<String, AdvancementCriterion<?>> advancementCriteria = new HashMap<>(age.criteria());
+        Map<String, Criterion<?>> advancementCriteria = new HashMap<>(age.criteria());
 
         if (advancementCriteria.isEmpty()) {
-            advancementCriteria.put("root", new AdvancementCriterion<>(Criteria.TICK, TickCriterion.Conditions.createTick().conditions()));
+            advancementCriteria.put(
+                    "root",
+                    new Criterion<>(
+                            CriteriaTriggers.TICK,
+                            PlayerTrigger.TriggerInstance.tick().triggerInstance()
+                    )
+            );
+
             alert = false;
         }
 
@@ -52,29 +68,31 @@ public class AgeEntry {
         return new Advancement(
                 Optional.of(parent),
                 Optional.of(createAdvancementDisplay(id, age, alert)),
-                AdvancementRewards.NONE,
+                AdvancementRewards.EMPTY,
                 advancementCriteria,
                 requirements,
                 false
         );
     }
 
-    private static AdvancementDisplay createAdvancementDisplay(Identifier id, Age age, boolean alert) {
+    private static DisplayInfo createAdvancementDisplay(Identifier id, Age age, boolean alert) {
         AgeDisplay ageDisplay = age.display();
 
-        MutableText title = getCategory(id)
-                .map(category -> Text.translatable("age." + id.getNamespace() + ".category." + category)
-                        .append(Text.literal(": "))
-                        .append(ageDisplay.title())
-                        .append(Text.literal(" "))
-                        .append(Text.translatable("age.genesisframework.age")))
-                .orElseGet(() -> Text.translatable("age.genesisframework.title",
+        MutableComponent title = getCategory(id)
+                .map(category -> Component.translatable("age." + id.getNamespace() + ".category." + category)
+                                          .append(Component.literal(": "))
+                                          .append(ageDisplay.title())
+                                          .append(Component.literal(" "))
+                                          .append(Component.translatable("age.genesisframework.age")))
+                .orElseGet(() -> Component.translatable(
+                        "age.genesisframework.title",
                         ageDisplay.title(),
-                        Text.translatable("age.genesisframework.age")));
+                        Component.translatable("age.genesisframework.age")
+                ));
 
-        AdvancementFrame frame = age.requiresParent() ? AdvancementFrame.GOAL : AdvancementFrame.CHALLENGE;
+        AdvancementType frame = age.requiresParent() ? AdvancementType.GOAL : AdvancementType.CHALLENGE;
 
-        return new AdvancementDisplay(
+        return new DisplayInfo(
                 ageDisplay.icon(),
                 title,
                 ageDisplay.description(),
@@ -114,7 +132,7 @@ public class AgeEntry {
     }
 
     public static Identifier getAdvancementId(Identifier id) {
-        return id.withPrefixedPath(ADVANCEMENT_PREFIX);
+        return id.withPrefix(ADVANCEMENT_PREFIX);
     }
 
     public Identifier getId() {
@@ -125,16 +143,16 @@ public class AgeEntry {
         return this.age;
     }
 
-    public AdvancementEntry getAdvancementEntry() {
-        return this.advancementEntry;
+    public AdvancementHolder getAdvancementHolder() {
+        return this.advancementHolder;
     }
 
-    public boolean isDone(ServerPlayerEntity player) {
-        return player.getAdvancementTracker().getProgress(this.advancementEntry).isDone();
+    public boolean isDone(ServerPlayer player) {
+        return player.getAdvancements().getOrStartProgress(this.advancementHolder).isDone();
     }
 
     @SuppressWarnings("unused")
     public Optional<Identifier> getParentAdvancementId() {
-        return this.advancementEntry.value().parent();
+        return this.advancementHolder.value().parent();
     }
 }

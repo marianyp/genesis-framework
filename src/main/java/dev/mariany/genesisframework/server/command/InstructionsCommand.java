@@ -3,70 +3,76 @@ package dev.mariany.genesisframework.server.command;
 import com.mojang.brigadier.CommandDispatcher;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
 import dev.mariany.genesisframework.instruction.InstructionEntry;
-import dev.mariany.genesisframework.instruction.InstructionManager;
-import net.minecraft.advancement.AdvancementEntry;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import dev.mariany.genesisframework.instruction.ServerInstructionManager;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Collection;
 import java.util.function.BiFunction;
 
 public class InstructionsCommand {
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
-                CommandManager.literal("instructions")
-                        .then(CommandManager.literal("restart")
-                                .executes(context -> executeRestart(
-                                                context.getSource()
-                                        )
-                                )
+                Commands.literal("instructions")
+                        .then(Commands.literal("restart")
+                                      .executes(context -> executeRestart(
+                                                        context.getSource()
+                                                )
+                                      )
                         )
-                        .then(CommandManager.literal("skip")
-                                .executes(context -> executeSkip(
-                                                context.getSource()
-                                        )
-                                )
+                        .then(Commands.literal("skip")
+                                      .executes(context -> executeSkip(
+                                                        context.getSource()
+                                                )
+                                      )
                         )
         );
     }
 
-    private static int executeRestart(ServerCommandSource source) {
+    private static int executeRestart(CommandSourceStack source) {
         int processed = handleAdvancements(source, AdvancementHelper::revokeAdvancement);
 
         if (processed > 0) {
-            source.sendFeedback(() -> Text.translatable("commands.genesisframework.instructions.reset", processed), false);
+            source.sendSuccess(
+                    () -> Component.translatable("commands.genesisframework.instructions.reset", processed),
+                    false
+            );
         } else {
-            source.sendError(Text.translatable("commands.genesisframework.instructions.reset.failure"));
+            source.sendFailure(Component.translatable("commands.genesisframework.instructions.reset.failure"));
         }
 
         return processed;
     }
 
-    private static int executeSkip(ServerCommandSource source) {
+    private static int executeSkip(CommandSourceStack source) {
         int processed = handleAdvancements(source, AdvancementHelper::giveAdvancement);
 
         if (processed > 0) {
-            source.sendFeedback(() -> Text.translatable("commands.genesisframework.instructions.skip", processed), false);
+            source.sendSuccess(
+                    () -> Component.translatable("commands.genesisframework.instructions.skip", processed),
+                    false
+            );
         } else {
-            source.sendError(Text.translatable("commands.genesisframework.instructions.skip.failure"));
+            source.sendFailure(Component.translatable("commands.genesisframework.instructions.skip.failure"));
         }
 
         return processed;
     }
 
     private static int handleAdvancements(
-            ServerCommandSource source,
-            BiFunction<ServerPlayerEntity, AdvancementEntry, Boolean> consumer
+            CommandSourceStack source,
+            BiFunction<ServerPlayer, AdvancementHolder, Boolean> consumer
     ) {
         int processed = 0;
 
-        if (source.getEntity() instanceof ServerPlayerEntity serverPlayer) {
-            InstructionManager instructionManager = InstructionManager.getInstance();
-            Collection<InstructionEntry> instructions = instructionManager.getInstructions();
+        if (source.getEntity() instanceof ServerPlayer serverPlayer) {
+            ServerInstructionManager serverInstructionManager = ServerInstructionManager.getInstance();
+            Collection<InstructionEntry> instructions = serverInstructionManager.getInstructions();
 
-            for (var instruction : instructions) {
+            for (InstructionEntry instruction : instructions) {
                 if (consumer.apply(serverPlayer, instruction.getAdvancementEntry())) {
                     ++processed;
                 }

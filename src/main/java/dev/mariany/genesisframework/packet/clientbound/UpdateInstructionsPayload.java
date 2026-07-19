@@ -1,25 +1,28 @@
 package dev.mariany.genesisframework.packet.clientbound;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 
-public record UpdateInstructionsPayload(List<Identifier> instructions) implements CustomPayload {
-    public static final Id<UpdateInstructionsPayload> ID = new Id<>(
-            GenesisFramework.id("update_instructions"));
-    public static final PacketCodec<RegistryByteBuf, UpdateInstructionsPayload> CODEC = PacketCodec.tuple(
-            Identifier.PACKET_CODEC.collect(PacketCodecs.toList()),
-            UpdateInstructionsPayload::instructions,
-            UpdateInstructionsPayload::new
+public record UpdateInstructionsPayload(List<Identifier> instructions) implements CustomPacketPayload {
+    public static final Type<UpdateInstructionsPayload> ID = new Type<>(
+            GenesisFramework.id("update_instructions")
     );
 
+    public static final StreamCodec<RegistryFriendlyByteBuf, UpdateInstructionsPayload> STREAM_CODEC =
+            StreamCodec.composite(
+                    Identifier.STREAM_CODEC.apply(ByteBufCodecs.list()),
+                    UpdateInstructionsPayload::instructions,
+                    UpdateInstructionsPayload::new
+            );
+
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

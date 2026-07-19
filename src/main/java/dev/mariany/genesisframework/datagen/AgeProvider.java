@@ -7,15 +7,14 @@ import com.mojang.serialization.JsonOps;
 import dev.mariany.genesisframework.age.Age;
 import dev.mariany.genesisframework.age.AgeEntry;
 import dev.mariany.genesisframework.registry.GFRegistryKeys;
-import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
 import net.fabricmc.fabric.impl.datagen.FabricDataGenHelper;
-import net.minecraft.data.DataOutput;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.data.CachedOutput;
 import net.minecraft.data.DataProvider;
-import net.minecraft.data.DataWriter;
-import net.minecraft.registry.RegistryOps;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.data.PackOutput;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.Identifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,27 +23,27 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public abstract class AgeProvider implements DataProvider {
-    protected final FabricDataOutput output;
-    private final DataOutput.PathResolver pathResolver;
-    private final CompletableFuture<RegistryWrapper.WrapperLookup> registryLookup;
+    protected final FabricPackOutput output;
+    private final PackOutput.PathProvider pathResolver;
+    private final CompletableFuture<HolderLookup.Provider> registryLookup;
 
-    public AgeProvider(FabricDataOutput output, CompletableFuture<RegistryWrapper.WrapperLookup> registryLookup) {
+    public AgeProvider(FabricPackOutput output, CompletableFuture<HolderLookup.Provider> registryLookup) {
         this.output = output;
-        this.pathResolver = output.getResolver(GFRegistryKeys.AGE);
+        this.pathResolver = output.createRegistryElementsPathProvider(GFRegistryKeys.AGE);
         this.registryLookup = registryLookup;
     }
 
-    public abstract void generateAges(RegistryWrapper.WrapperLookup registryLookup, Consumer<AgeEntry> consumer);
+    public abstract void generateAges(HolderLookup.Provider registryLookup, Consumer<AgeEntry> consumer);
 
     @Override
-    public CompletableFuture<?> run(DataWriter writer) {
+    public CompletableFuture<?> run(CachedOutput writer) {
         return this.registryLookup.thenCompose(lookup -> {
             final Set<Identifier> identifiers = Sets.newHashSet();
             final Set<AgeEntry> ages = Sets.newHashSet();
 
             generateAges(lookup, ages::add);
 
-            RegistryOps<JsonElement> ops = lookup.getOps(JsonOps.INSTANCE);
+            RegistryOps<JsonElement> ops = lookup.createSerializationContext(JsonOps.INSTANCE);
             final List<CompletableFuture<?>> futures = new ArrayList<>();
 
             for (AgeEntry ageEntry : ages) {
@@ -59,7 +58,7 @@ public abstract class AgeProvider implements DataProvider {
 
                 FabricDataGenHelper.addConditions(advancementJson, FabricDataGenHelper.consumeConditions(ageEntry));
 
-                futures.add(DataProvider.writeToPath(writer, advancementJson, getOutputPath(ageEntry)));
+                futures.add(DataProvider.saveStable(writer, advancementJson, getOutputPath(ageEntry)));
             }
 
             return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
@@ -67,6 +66,6 @@ public abstract class AgeProvider implements DataProvider {
     }
 
     private Path getOutputPath(AgeEntry age) {
-        return pathResolver.resolveJson(age.getId());
+        return pathResolver.json(age.getId());
     }
 }

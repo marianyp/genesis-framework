@@ -1,4 +1,4 @@
-accessWidener v2 named
+accessWidener v2 official
 
-accessible class net/minecraft/client/gui/screen/recipebook/AnimatedResultButton$Result
-accessible class net/minecraft/client/toast/ToastManager$Entry
+accessible class net/minecraft/client/gui/screens/recipebook/RecipeButton$ResolvedEntry
+accessible class net/minecraft/client/gui/components/toasts/ToastManager$ToastInstance

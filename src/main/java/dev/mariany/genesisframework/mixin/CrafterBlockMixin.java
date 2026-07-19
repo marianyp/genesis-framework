@@ -2,14 +2,14 @@ package dev.mariany.genesisframework.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import dev.mariany.genesisframework.age.AgeManager;
-import net.minecraft.block.CrafterBlock;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.CraftingRecipe;
-import net.minecraft.recipe.RecipeCache;
-import net.minecraft.recipe.RecipeEntry;
-import net.minecraft.recipe.input.CraftingRecipeInput;
-import net.minecraft.server.world.ServerWorld;
+import dev.mariany.genesisframework.age.ServerAgeManager;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeCache;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.level.block.CrafterBlock;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
@@ -21,29 +21,29 @@ public class CrafterBlockMixin {
      * Prevent Crafter from crafting an item that requires an age.
      */
     @WrapOperation(
-            method = "getCraftingRecipe",
+            method = "getPotentialResults",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/recipe/RecipeCache;getRecipe(Lnet/minecraft/server/world/ServerWorld;Lnet/minecraft/recipe/input/CraftingRecipeInput;)Ljava/util/Optional;"
+                    target = "Lnet/minecraft/world/item/crafting/RecipeCache;get(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/crafting/CraftingInput;)Ljava/util/Optional;"
             )
     )
-    private static Optional<RecipeEntry<CraftingRecipe>> wrapGetCraftingRecipe(
+    private static Optional<RecipeHolder<CraftingRecipe>> wrapGetCraftingRecipe(
             RecipeCache recipeCache,
-            ServerWorld world,
-            CraftingRecipeInput input,
-            Operation<Optional<RecipeEntry<CraftingRecipe>>> original
+            ServerLevel level,
+            CraftingInput input,
+            Operation<Optional<RecipeHolder<CraftingRecipe>>> original
     ) {
-        Optional<RecipeEntry<CraftingRecipe>> optionalRecipe = original.call(recipeCache, world, input);
+        Optional<RecipeHolder<CraftingRecipe>> optionalRecipe = original.call(recipeCache, level, input);
 
         if (optionalRecipe.isPresent()) {
-            RecipeEntry<CraftingRecipe> recipe = optionalRecipe.get();
-            ItemStack stack = recipe.value().craft(input, world.getRegistryManager());
+            RecipeHolder<CraftingRecipe> recipe = optionalRecipe.get();
+            ItemStack stack = recipe.value().assemble(input);
 
-            if (AgeManager.getInstance().isAgeGuarded(stack.getItem())) {
+            if (ServerAgeManager.getInstance().isAgeGuarded(stack.getItem())) {
                 return Optional.empty();
             }
         }
 
-        return original.call(recipeCache, world, input);
+        return original.call(recipeCache, level, input);
     }
 }

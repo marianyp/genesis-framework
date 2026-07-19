@@ -2,53 +2,53 @@ package dev.mariany.genesisframework.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import dev.mariany.genesisframework.age.AgeManager;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.CraftingRecipe;
-import net.minecraft.recipe.Recipe;
-import net.minecraft.recipe.RecipeEntry;
-import net.minecraft.recipe.ServerRecipeManager;
-import net.minecraft.recipe.input.CraftingRecipeInput;
-import net.minecraft.registry.RegistryKey;
+import dev.mariany.genesisframework.age.ServerAgeManager;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.network.ServerRecipeBook;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.stats.ServerRecipeBook;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 
 import java.util.Optional;
 
-@Mixin(ServerPlayNetworkHandler.class)
+@Mixin(ServerGamePacketListenerImpl.class)
 public class ServerPlayNetworkHandlerMixin {
     @Shadow
-    public ServerPlayerEntity player;
+    public ServerPlayer player;
 
     /**
-     * Check if an item is unlocked when calling {@link ServerRecipeBook#isUnlocked(RegistryKey)}.
+     * Check if an item is unlocked when calling {@link ServerRecipeBook#contains(ResourceKey)}.
      */
     @WrapOperation(
-            method = "onCraftRequest",
+            method = "handlePlaceRecipe",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/network/ServerRecipeBook;isUnlocked(Lnet/minecraft/registry/RegistryKey;)Z"
+                    target = "Lnet/minecraft/stats/ServerRecipeBook;contains(Lnet/minecraft/resources/ResourceKey;)Z"
             )
     )
     public boolean wrapOnCraftRequest(
             ServerRecipeBook recipeBook,
-            RegistryKey<Recipe<?>> recipeKey,
+            ResourceKey<Recipe<?>> recipeKey,
             Operation<Boolean> original
     ) {
-        MinecraftServer server = this.player.getEntityWorld().getServer();
-        ServerRecipeManager recipeManager = server.getRecipeManager();
-        Optional<RecipeEntry<?>> recipeEntry = recipeManager.get(recipeKey);
+        MinecraftServer server = this.player.level().getServer();
+        RecipeManager recipeManager = server.getRecipeManager();
+        Optional<RecipeHolder<?>> recipeEntry = recipeManager.byKey(recipeKey);
 
         if (recipeEntry.isPresent()) {
             if (recipeEntry.get().value() instanceof CraftingRecipe craftingRecipe) {
-                ItemStack stack = craftingRecipe.craft(CraftingRecipeInput.EMPTY, server.getRegistryManager());
+                ItemStack stack = craftingRecipe.assemble(CraftingInput.EMPTY);
 
-                if (!AgeManager.getInstance().isUnlocked(this.player, stack)) {
+                if (!ServerAgeManager.getInstance().isUnlocked(this.player, stack)) {
                     return false;
                 }
             }

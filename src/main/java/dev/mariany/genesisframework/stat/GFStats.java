@@ -1,27 +1,27 @@
 package dev.mariany.genesisframework.stat;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.stat.StatFormatter;
-import net.minecraft.stat.Stats;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.stats.StatFormatter;
+import net.minecraft.stats.Stats;
 
 public class GFStats {
-    public static final RegistryEntry.Reference<Identifier> HOSTILE_KILLS = register(
+    public static final Holder.Reference<Identifier> HOSTILE_KILLS = register(
             "hostile_kills",
             StatFormatter.DEFAULT
     );
 
-    private static RegistryEntry.Reference<Identifier> register(String name, StatFormatter formatter) {
+    private static Holder.Reference<Identifier> register(String name, StatFormatter formatter) {
         Identifier id = GenesisFramework.id(name);
-        RegistryEntry.Reference<Identifier> reference = Registry.registerReference(Registries.CUSTOM_STAT, id, id);
-        Stats.CUSTOM.getOrCreateStat(id, formatter);
+        Holder.Reference<Identifier> reference = Registry.registerForHolder(BuiltInRegistries.CUSTOM_STAT, id, id);
+        Stats.CUSTOM.get(id, formatter);
         return reference;
     }
 
     public static void bootstrap() {
-        GenesisFramework.LOGGER.info("Registering Stats for " + GenesisFramework.MOD_ID);
+        GenesisFramework.bootstrapLog("Stats");
     }
 }

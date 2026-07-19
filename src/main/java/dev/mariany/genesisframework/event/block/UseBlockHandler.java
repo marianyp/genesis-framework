@@ -2,40 +2,40 @@ package dev.mariany.genesisframework.event.block;
 
 import dev.mariany.genesisframework.age.AgeEntry;
 import dev.mariany.genesisframework.age.AgeLockNotifier;
-import dev.mariany.genesisframework.age.AgeManager;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.world.World;
+import dev.mariany.genesisframework.age.ServerAgeManager;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 
 import java.util.Optional;
 
 public class UseBlockHandler {
-    public static ActionResult onUseBlock(PlayerEntity player, World world, Hand hand, BlockHitResult result) {
-        if (player instanceof ServerPlayerEntity serverPlayer) {
-            AgeManager ageManager = AgeManager.getInstance();
-            BlockState state = world.getBlockState(result.getBlockPos());
+    public static InteractionResult onUseBlock(Player player, Level level, InteractionHand hand, BlockHitResult result) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
+            BlockState state = level.getBlockState(result.getBlockPos());
             Block block = state.getBlock();
 
-            if (!ageManager.isUnlocked(serverPlayer, block)) {
+            if (!serverAgeManager.isUnlocked(serverPlayer, block)) {
                 String itemTranslation = block.getName().getString();
 
-                Optional<AgeEntry> optionalAgeEntry = ageManager.getRequiredAges(block.asItem().getDefaultStack())
-                        .stream()
-                        .findAny();
+                Optional<AgeEntry> optionalAgeEntry = serverAgeManager.getRequiredAges(block.asItem().getDefaultInstance())
+                                                                      .stream()
+                                                                      .findAny();
 
                 optionalAgeEntry.ifPresent(ageEntry ->
                         AgeLockNotifier.notifyAgeLockedClick(itemTranslation, ageEntry.getAge(), serverPlayer)
                 );
 
-                return ActionResult.FAIL;
+                return InteractionResult.FAIL;
             }
         }
 
-        return ActionResult.PASS;
+        return InteractionResult.PASS;
     }
 }

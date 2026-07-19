@@ -5,30 +5,29 @@ import dev.mariany.genesisframework.age.AgeEntry;
 import dev.mariany.genesisframework.instruction.Instruction;
 import dev.mariany.genesisframework.instruction.InstructionEntry;
 import dev.mariany.genesisframework.item.GFItems;
-import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.text.Text;
-
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.network.chat.Component;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public class GFInstructionProvider extends InstructionProvider {
     public GFInstructionProvider(
-            FabricDataOutput output,
-            CompletableFuture<RegistryWrapper.WrapperLookup> registryLookup
+            FabricPackOutput output,
+            CompletableFuture<HolderLookup.Provider> registryLookup
     ) {
         super(output, registryLookup);
     }
 
     @Override
-    public void generateInstructions(RegistryWrapper.WrapperLookup registryLookup, Consumer<InstructionEntry> consumer) {
+    public void generateInstructions(HolderLookup.Provider registryLookup, Consumer<InstructionEntry> consumer) {
         Instruction.Builder.create()
                 .display(
                         GFItems.AGE_BOOK,
-                        Text.translatable("instruction.genesisframework.view_ages"),
-                        Text.translatable("instruction.genesisframework.view_ages.description",
-                                Text.keybind(MinecraftClient.getInstance().options.advancementsKey.getBoundKeyTranslationKey())
+                        Component.translatable("instruction.genesisframework.view_ages"),
+                        Component.translatable("instruction.genesisframework.view_ages.description",
+                                Component.keybind(Minecraft.getInstance().options.keyAdvancements.saveString())
                         )
                 )
                 .criterion("view_ages", OpenAdvancementTabCriteria.Conditions.create(AgeEntry.ROOT_ADVANCEMENT_ID))

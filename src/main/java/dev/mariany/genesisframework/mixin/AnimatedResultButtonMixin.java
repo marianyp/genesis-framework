@@ -2,32 +2,49 @@ package dev.mariany.genesisframework.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import net.minecraft.client.gui.screen.recipebook.AnimatedResultButton;
+import net.minecraft.client.gui.screens.recipebook.RecipeButton;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
-@Mixin(AnimatedResultButton.class)
+@Mixin(RecipeButton.class)
 public class AnimatedResultButtonMixin {
     @Shadow
-    private List<AnimatedResultButton.Result> results;
+    private List<?> selectedEntries;
 
     /**
-     * Remove any {@link AnimatedResultButton.Result} that have empty {@link AnimatedResultButton.Result#displayItems()}
+     * Remove any recipe entries that have empty display items.
      */
     @WrapOperation(
-            method = "showResultCollection",
+            method = "init",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/screen/recipebook/AnimatedResultButton;areAllResultsEqual(Ljava/util/List;)Z"
+                    target = "Lnet/minecraft/client/gui/screens/recipebook/RecipeButton;allRecipesHaveSameResultDisplay(Ljava/util/List;)Z"
             )
     )
     public boolean injectShowResultCollection(
-            List<AnimatedResultButton.Result> results, Operation<Boolean> original
+            List<?> results, Operation<Boolean> original
     ) {
-        this.results = this.results.stream().filter(result -> !result.displayItems().isEmpty()).toList();
-        return original.call(this.results);
+        this.selectedEntries = this.selectedEntries.stream()
+                .filter(AnimatedResultButtonMixin::hasDisplayItems)
+                .toList();
+
+        return original.call(this.selectedEntries);
+    }
+
+    @Unique
+    private static boolean hasDisplayItems(Object result) {
+        try {
+            Method displayItems = result.getClass().getDeclaredMethod("displayItems");
+            displayItems.setAccessible(true);
+            Object value = displayItems.invoke(result);
+            return value instanceof List<?> list && !list.isEmpty();
+        } catch (ReflectiveOperationException exception) {
+            return true;
+        }
     }
 }

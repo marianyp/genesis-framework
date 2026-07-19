@@ -7,15 +7,14 @@ import com.mojang.serialization.JsonOps;
 import dev.mariany.genesisframework.instruction.Instruction;
 import dev.mariany.genesisframework.instruction.InstructionEntry;
 import dev.mariany.genesisframework.registry.GFRegistryKeys;
-import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
 import net.fabricmc.fabric.impl.datagen.FabricDataGenHelper;
-import net.minecraft.data.DataOutput;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.data.CachedOutput;
 import net.minecraft.data.DataProvider;
-import net.minecraft.data.DataWriter;
-import net.minecraft.registry.RegistryOps;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.data.PackOutput;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.Identifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,33 +23,33 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public abstract class InstructionProvider implements DataProvider {
-    protected final FabricDataOutput output;
-    private final DataOutput.PathResolver pathResolver;
-    private final CompletableFuture<RegistryWrapper.WrapperLookup> registryLookup;
+    protected final FabricPackOutput output;
+    private final PackOutput.PathProvider pathResolver;
+    private final CompletableFuture<HolderLookup.Provider> registryLookup;
 
     public InstructionProvider(
-            FabricDataOutput output,
-            CompletableFuture<RegistryWrapper.WrapperLookup> registryLookup
+            FabricPackOutput output,
+            CompletableFuture<HolderLookup.Provider> registryLookup
     ) {
         this.output = output;
-        this.pathResolver = output.getResolver(GFRegistryKeys.INSTRUCTION);
+        this.pathResolver = output.createRegistryElementsPathProvider(GFRegistryKeys.INSTRUCTION);
         this.registryLookup = registryLookup;
     }
 
     public abstract void generateInstructions(
-            RegistryWrapper.WrapperLookup registryLookup,
+            HolderLookup.Provider registryLookup,
             Consumer<InstructionEntry> consumer
     );
 
     @Override
-    public CompletableFuture<?> run(DataWriter writer) {
+    public CompletableFuture<?> run(CachedOutput writer) {
         return this.registryLookup.thenCompose(lookup -> {
             final Set<Identifier> identifiers = Sets.newHashSet();
             final Set<InstructionEntry> instructions = Sets.newHashSet();
 
             generateInstructions(lookup, instructions::add);
 
-            RegistryOps<JsonElement> ops = lookup.getOps(JsonOps.INSTANCE);
+            RegistryOps<JsonElement> ops = lookup.createSerializationContext(JsonOps.INSTANCE);
             final List<CompletableFuture<?>> futures = new ArrayList<>();
 
             for (InstructionEntry instructionEntry : instructions) {
@@ -70,7 +69,7 @@ public abstract class InstructionProvider implements DataProvider {
                         FabricDataGenHelper.consumeConditions(instructionEntry)
                 );
 
-                futures.add(DataProvider.writeToPath(writer, advancementJson, getOutputPath(instructionEntry)));
+                futures.add(DataProvider.saveStable(writer, advancementJson, getOutputPath(instructionEntry)));
             }
 
             return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
@@ -78,6 +77,6 @@ public abstract class InstructionProvider implements DataProvider {
     }
 
     private Path getOutputPath(InstructionEntry instruction) {
-        return pathResolver.resolveJson(instruction.getId());
+        return pathResolver.json(instruction.getId());
     }
 }
