@@ -17,7 +17,7 @@
   "genesisframework.age.ageNotFound": "Unknown age: %s",
   "instruction.genesisframework.complete.title": "Guide Complete!",
   "instruction.genesisframework.view_ages": "View Ages",
-  "instruction.genesisframework.view_ages.description": "Press %s to view age progression",
+  "instruction.genesisframework.view_ages.description": "Press %s to open the advancements screen and view age progression.",
   "item.genesisframework.age_book": "Age Book",
   "item.modifiers.genesisframework.age": "%s Age:",
   "stat.genesisframework.hostile_kills": "Hostile Kills",
