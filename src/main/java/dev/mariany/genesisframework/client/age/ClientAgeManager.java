@@ -19,7 +19,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -177,7 +176,7 @@ public class ClientAgeManager {
 
             @Override
             public SlotDisplay craftingStation() {
-                return new SlotDisplay.ItemStackSlotDisplay(new ItemStackTemplate(Items.AIR));
+                return SlotDisplay.Empty.INSTANCE;
             }
 
             @Override
