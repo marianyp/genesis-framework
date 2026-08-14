@@ -1,6 +1,6 @@
 package dev.mariany.genesisframework.mixin;
 
-import dev.mariany.genesisframework.client.age.ClientAgeManager;
+import dev.mariany.genesisframework.event.client.item.ClientItemEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -15,17 +15,17 @@ import java.util.function.Consumer;
 
 @Mixin(ItemStack.class)
 public class ClientItemStackMixin {
-    @Inject(
-            method = "addAttributeTooltips",
-            at = @At(value = "TAIL")
-    )
-    private void addAttributeTooltips(
+    /**
+     * Invokes {@link ClientItemEvents#ADD_ATTRIBUTE_TOOLTIPS} after vanilla attribute tooltips are added.
+     */
+    @Inject(method = "addAttributeTooltips", at = @At(value = "TAIL"))
+    private void injectAddAttributeTooltips(
             Consumer<Component> consumer,
             TooltipDisplay display,
             @Nullable Player player,
             CallbackInfo ci
     ) {
         ItemStack stack = (ItemStack) (Object) this;
-        ClientAgeManager.getInstance().addAttributeTooltips(stack, display, consumer);
+        ClientItemEvents.ADD_ATTRIBUTE_TOOLTIPS.invoker().addAttributeTooltips(stack, display, player, consumer);
     }
 }

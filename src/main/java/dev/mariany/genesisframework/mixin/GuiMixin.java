@@ -1,6 +1,6 @@
 package dev.mariany.genesisframework.mixin;
 
-import dev.mariany.genesisframework.client.instruction.ClientInstructionManager;
+import dev.mariany.genesisframework.event.client.gui.ClientGuiEvents;
 import net.minecraft.client.gui.Gui;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -10,13 +10,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Gui.class)
 public class GuiMixin {
     /**
-     * Update instruction toasts after updating ${@link net.minecraft.client.gui.components.toasts.ToastManager} toasts.
+     * Invokes {@link ClientGuiEvents#BEFORE_TOASTS_UPDATE} before the toast manager updates.
      */
     @Inject(
             method = "update",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/toasts/ToastManager;update()V")
     )
     private void injectRender(CallbackInfo ci) {
-        ClientInstructionManager.getInstance().update();
+        ClientGuiEvents.BEFORE_TOASTS_UPDATE.invoker().beforeToastsUpdate();
     }
 }

@@ -2,7 +2,7 @@ package dev.mariany.genesisframework.age;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerCriteria;
+import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerTrigger;
 import dev.mariany.genesisframework.stat.GFStats;
 import net.minecraft.advancements.AdvancementRequirements;
 import net.minecraft.advancements.predicates.ContextAwarePredicate;
@@ -257,21 +257,23 @@ public record Age(
                     default -> null;
                 };
 
-                if (entityEquipmentPredicate != null) {
-                    String name = "trial_completed_with_" + slot.getSerializedName();
-
-                    criterion(
-                            name,
-                            CompleteTrialSpawnerCriteria.Conditions.create(
-                                    EntityPredicate.wrap(
-                                            EntityPredicate.Builder.entity().equipment(entityEquipmentPredicate).build()
-                                    ),
-                                    ominous
-                            )
-                    );
-
-                    requirements.add(name);
+                if (entityEquipmentPredicate == null) {
+                    continue;
                 }
+
+                String name = "trial_completed_with_" + slot.getSerializedName();
+
+                criterion(
+                        name,
+                        CompleteTrialSpawnerTrigger.TriggerInstance.create(
+                                EntityPredicate.wrap(
+                                        EntityPredicate.Builder.entity().equipment(entityEquipmentPredicate).build()
+                                ),
+                                ominous
+                        )
+                );
+
+                requirements.add(name);
             }
 
             this.requirements = AdvancementRequirements.anyOf(requirements);

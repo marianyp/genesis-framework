@@ -1,15 +1,10 @@
 package dev.mariany.genesisframework.instruction;
 
 import dev.mariany.genesisframework.GenesisFramework;
-
-import net.minecraft.advancements.Advancement;
-import net.minecraft.advancements.AdvancementHolder;
-import net.minecraft.advancements.AdvancementRequirements;
-import net.minecraft.advancements.AdvancementRewards;
-import net.minecraft.advancements.AdvancementType;
+import net.minecraft.advancements.*;
 import net.minecraft.advancements.triggers.Criterion;
-import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.resources.Identifier;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,22 +15,22 @@ public class InstructionEntry {
 
     private final Identifier id;
     private final Instruction instruction;
-    private final AdvancementHolder advancementEntry;
+    private final AdvancementHolder advancementHolder;
 
     public InstructionEntry(Identifier id, Instruction instruction) {
         this.id = id;
         this.instruction = instruction;
-        this.advancementEntry = createAdvancementEntry(id, instruction);
+        this.advancementHolder = createAdvancementHolder(id, instruction);
     }
 
-    private AdvancementHolder createAdvancementEntry(Identifier id, Instruction instruction) {
+    private AdvancementHolder createAdvancementHolder(Identifier id, Instruction instruction) {
         return new AdvancementHolder(getAdvancementId(id), createAdvancement(instruction));
     }
 
     public static Advancement createAdvancement(Instruction instruction) {
         Identifier parent = instruction.parent()
-                .map(InstructionEntry::getAdvancementId)
-                .orElse(ROOT_ADVANCEMENT_ID);
+                                       .map(InstructionEntry::getAdvancementId)
+                                       .orElse(ROOT_ADVANCEMENT_ID);
 
         Map<String, Criterion<?>> criteria = instruction.criteria();
 
@@ -86,7 +81,7 @@ public class InstructionEntry {
         return this.instruction;
     }
 
-    public AdvancementHolder getAdvancementEntry() {
-        return this.advancementEntry;
+    public AdvancementHolder getAdvancementHolder() {
+        return this.advancementHolder;
     }
 }

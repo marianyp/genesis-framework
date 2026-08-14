@@ -19,14 +19,21 @@
       "dev.mariany.genesisframework.GenesisFramework"
     ],
     "client": [
-      "dev.mariany.genesisframework.client.GFClient"
+      "dev.mariany.genesisframework.client.GenesisFrameworkClient"
+    ],
+    "rei_client": [
+      "dev.mariany.genesisframework.compat.rei.GenesisFrameworkREIPlugin"
+    ],
+    "jei_mod_plugin": [
+      "dev.mariany.genesisframework.compat.jei.GenesisFrameworkJEIPlugin"
     ],
     "fabric-datagen": [
       "dev.mariany.genesisframework.GFDataGenerator"
     ]
   },
   "mixins": [
-    "genesisframework.mixins.json"
+    "genesisframework.mixins.json",
+    "genesisframework-jei.mixins.json"
   ],
   "accessWidener": "genesisframework.accesswidener",
   "depends": {
@@ -34,5 +41,9 @@
     "minecraft": ">=26.2",
     "java": ">=25",
     "fabric-api": ">=0.154.2"
+  },
+  "suggests": {
+    "roughlyenoughitems": "*",
+    "jei": "*"
   }
 }

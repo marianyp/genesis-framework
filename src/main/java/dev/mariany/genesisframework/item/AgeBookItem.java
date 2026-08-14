@@ -35,22 +35,24 @@ public class AgeBookItem extends Item {
             return InteractionResult.FAIL;
         }
 
-        if (player instanceof ServerPlayer serverPlayer) {
-            ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResult.SUCCESS;
+        }
 
-            for (ResourceKey<Age> ageKey : ages) {
-                Optional<AgeEntry> optionalAgeEntry = serverAgeManager.get(ageKey.identifier());
+        ServerAgeManager serverAgeManager = GenesisFramework.getServerAgeManager();
 
-                if (optionalAgeEntry.isPresent()) {
-                    AgeEntry ageEntry = optionalAgeEntry.get();
-                    AdvancementHelper.giveAdvancement(serverPlayer, ageEntry.getAdvancementHolder());
-                } else {
-                    GenesisFramework.LOGGER.error("Invalid age: {}", ageKey);
-                }
+        for (ResourceKey<Age> ageKey : ages) {
+            Optional<AgeEntry> optionalAgeEntry = serverAgeManager.get(ageKey.identifier());
+
+            if (optionalAgeEntry.isEmpty()) {
+                GenesisFramework.LOGGER.error("Invalid age: {}", ageKey);
+                continue;
             }
 
-            player.awardStat(Stats.ITEM_USED.get(this));
+            AdvancementHelper.giveAdvancement(serverPlayer, optionalAgeEntry.get().getAdvancementHolder());
         }
+
+        player.awardStat(Stats.ITEM_USED.get(this));
 
         return InteractionResult.SUCCESS;
     }

@@ -1,28 +1,23 @@
 package dev.mariany.genesisframework.age;
 
-import com.google.common.collect.ImmutableMap;
-import dev.mariany.genesisframework.registry.GFRegistryKeys;
-import java.util.Map;
+import dev.mariany.genesisframework.GenesisFramework;
+import dev.mariany.genesisframework.registry.GFRegistries;
+import dev.mariany.genesisframework.resource.CodecDataResourceReloadListener;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
-import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.server.packs.resources.PreparableReloadListener;
 
-public class AgeDataLoader extends SimpleJsonResourceReloadListener<Age> {
+import java.util.Map;
+
+public class AgeDataLoader extends CodecDataResourceReloadListener<Age> {
     public AgeDataLoader(HolderLookup.Provider registries) {
-        super(registries, Age.CODEC, GFRegistryKeys.AGE);
+        super(registries, Age.CODEC, GFRegistries.AGE);
     }
 
     @Override
-    protected void apply(Map<Identifier, Age> map, ResourceManager manager, ProfilerFiller profiler) {
-        ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
+    protected void apply(Map<Identifier, Age> prepared, PreparableReloadListener.SharedState state) {
+        ServerAgeManager serverAgeManager = GenesisFramework.getServerAgeManager();
         serverAgeManager.clear();
-
-        ImmutableMap.Builder<Identifier, AgeEntry> builder = ImmutableMap.builder();
-
-        map.forEach((id, age) -> builder.put(id, new AgeEntry(id, age)));
-
-        builder.buildOrThrow().values().forEach(serverAgeManager::add);
+        prepared.forEach((id, age) -> serverAgeManager.add(new AgeEntry(id, age)));
     }
 }

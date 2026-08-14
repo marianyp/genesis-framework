@@ -7,15 +7,17 @@ import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.level.gamerules.GameRule;
 import net.minecraft.world.level.gamerules.GameRuleCategory;
 
-public class GFGameRules {
+public final class GFGameRules {
     public static final GameRule<AgeShareManager.AgeSharingOption> AGE_SHARING = GameRuleBuilder
             .forEnum(AgeShareManager.AgeSharingOption.DISABLED)
             .codec(StringRepresentable.fromEnum(AgeShareManager.AgeSharingOption::values))
             .category(GameRuleCategory.MISC)
             .buildAndRegister(GenesisFramework.id("age_sharing"));
 
+    private GFGameRules() {
+    }
+
     public static void bootstrap() {
-        GenesisFramework.LOGGER.info("Registering Gamerules for " + GenesisFramework.MOD_ID);
         GenesisFramework.bootstrapLog("Game Rules");
     }
 }

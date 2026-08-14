@@ -1,8 +1,6 @@
 package dev.mariany.genesisframework.mixin;
 
-import dev.mariany.genesisframework.age.AgeEntry;
-import dev.mariany.genesisframework.client.GFClient;
-import dev.mariany.genesisframework.instruction.InstructionEntry;
+import dev.mariany.genesisframework.event.client.advancement.ClientAdvancementEvents;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementNode;
 import net.minecraft.client.gui.screens.advancements.AdvancementTab;
@@ -17,7 +15,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Map;
-import java.util.Optional;
 
 @Mixin(AdvancementsScreen.class)
 public abstract class AdvancementsScreenMixin {
@@ -33,33 +30,24 @@ public abstract class AdvancementsScreenMixin {
     private ClientAdvancements advancements;
 
     /**
-     * Start on Age tab if advancement present.
+     * Invokes {@link ClientAdvancementEvents#SCREEN_INITIALIZED} after the advancements screen initializes.
      */
     @Inject(method = "init", at = @At(value = "TAIL"))
     public void injectInit(CallbackInfo ci) {
-        if (!GFClient.getConfig().advancementScreenStartsOnAges) {
-            return;
-        }
-
-        Optional<AdvancementHolder> optionalAgeRoot = this.tabs
-                .keySet()
-                .stream()
-                .filter(AgeEntry::isRoot)
-                .findFirst();
-
-        optionalAgeRoot.ifPresent(advancementEntry -> {
-            this.onSelectedTabChanged(advancementEntry);
-            this.advancements.setSelectedTab(advancementEntry, true);
-        });
+        ClientAdvancementEvents.SCREEN_INITIALIZED
+                .invoker()
+                .onScreenInitialized(this.tabs, this.advancements, this::onSelectedTabChanged);
     }
 
     /**
-     * Prevents instruction tab from being added.
+     * Queries {@link ClientAdvancementEvents#ALLOW_ROOT} before adding an advancement root to the screen.
      */
     @Inject(method = "onAddAdvancementRoot", at = @At(value = "HEAD"), cancellable = true)
-    public void injectOnRootAdded(AdvancementNode root, CallbackInfo ci) {
-        if (root.holder().id().equals(InstructionEntry.ROOT_ADVANCEMENT_ID)) {
-            ci.cancel();
+    public void injectOnAddAdvancementRoot(AdvancementNode root, CallbackInfo ci) {
+        if (ClientAdvancementEvents.ALLOW_ROOT.invoker().allowRoot(root)) {
+            return;
         }
+
+        ci.cancel();
     }
 }

@@ -1,22 +1,17 @@
 package dev.mariany.genesisframework.age;
 
 import dev.mariany.genesisframework.GenesisFramework;
-
-import net.minecraft.advancements.Advancement;
-import net.minecraft.advancements.AdvancementHolder;
-import net.minecraft.advancements.AdvancementRequirements;
-import net.minecraft.advancements.AdvancementRewards;
-import net.minecraft.advancements.AdvancementType;
+import net.minecraft.advancements.*;
 import net.minecraft.advancements.triggers.CriteriaTriggers;
 import net.minecraft.advancements.triggers.Criterion;
-import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.advancements.triggers.PlayerTrigger;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.crafting.Ingredient;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,35 +26,22 @@ public class AgeEntry {
     public AgeEntry(Identifier id, Age age) {
         this.id = id;
         this.age = age;
-        this.advancementHolder = createAdvancementEntry(id, age);
+        this.advancementHolder = createAdvancementHolder(id, age);
     }
 
     public static boolean isRoot(AdvancementHolder advancementHolder) {
         return advancementHolder.id().equals(AgeEntry.ROOT_ADVANCEMENT_ID);
     }
 
-    private AdvancementHolder createAdvancementEntry(Identifier id, Age age) {
+    private AdvancementHolder createAdvancementHolder(Identifier id, Age age) {
         return new AdvancementHolder(getAdvancementId(this), createAdvancement(id, age));
     }
 
     public static Advancement createAdvancement(Identifier id, Age age) {
         Identifier parent = age.parent().map(AgeEntry::getAdvancementId).orElse(AgeEntry.ROOT_ADVANCEMENT_ID);
 
-        boolean alert = true;
-
-        Map<String, Criterion<?>> advancementCriteria = new HashMap<>(age.criteria());
-
-        if (advancementCriteria.isEmpty()) {
-            advancementCriteria.put(
-                    "root",
-                    new Criterion<>(
-                            CriteriaTriggers.TICK,
-                            PlayerTrigger.TriggerInstance.tick().triggerInstance()
-                    )
-            );
-
-            alert = false;
-        }
+        boolean alert = !age.criteria().isEmpty();
+        Map<String, Criterion<?>> advancementCriteria = getAdvancementCriteria(age);
 
         AdvancementRequirements requirements = age.requirements().isEmpty() ?
                 AdvancementRequirements.allOf(advancementCriteria.keySet()) :
@@ -75,20 +57,24 @@ public class AgeEntry {
         );
     }
 
+    private static Map<String, Criterion<?>> getAdvancementCriteria(Age age) {
+        Map<String, Criterion<?>> criteria = new HashMap<>(age.criteria());
+
+        if (!criteria.isEmpty()) {
+            return criteria;
+        }
+
+        criteria.put(
+                "root",
+                new Criterion<>(CriteriaTriggers.TICK, PlayerTrigger.TriggerInstance.tick().triggerInstance())
+        );
+
+        return criteria;
+    }
+
     private static DisplayInfo createAdvancementDisplay(Identifier id, Age age, boolean alert) {
         AgeDisplay ageDisplay = age.display();
-
-        MutableComponent title = getCategory(id)
-                .map(category -> Component.translatable("age." + id.getNamespace() + ".category." + category)
-                                          .append(Component.literal(": "))
-                                          .append(ageDisplay.title())
-                                          .append(Component.literal(" "))
-                                          .append(Component.translatable("age.genesisframework.age")))
-                .orElseGet(() -> Component.translatable(
-                        "age.genesisframework.title",
-                        ageDisplay.title(),
-                        Component.translatable("age.genesisframework.age")
-                ));
+        Component title = AgeMetadata.create(id, age).component();
 
         AdvancementType frame = age.requiresParent() ? AdvancementType.GOAL : AdvancementType.CHALLENGE;
 
@@ -143,16 +129,24 @@ public class AgeEntry {
         return this.age;
     }
 
+    public AgeMetadata getMetaData() {
+        return AgeMetadata.create(this.id, this.age);
+    }
+
     public AdvancementHolder getAdvancementHolder() {
         return this.advancementHolder;
     }
 
-    public boolean isDone(ServerPlayer player) {
-        return player.getAdvancements().getOrStartProgress(this.advancementHolder).isDone();
+    public boolean isDone(ServerPlayer serverPlayer) {
+        return serverPlayer.getAdvancements().getOrStartProgress(this.advancementHolder).isDone();
     }
 
     @SuppressWarnings("unused")
     public Optional<Identifier> getParentAdvancementId() {
         return this.advancementHolder.value().parent();
+    }
+
+    public List<Ingredient> getItems() {
+        return this.getAge().items();
     }
 }

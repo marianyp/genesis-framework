@@ -2,7 +2,7 @@ package dev.mariany.genesisframework.age;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import dev.mariany.genesisframework.item.ItemTrait;
+import dev.mariany.genesisframework.item.trait.ItemTrait;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.crafting.Ingredient;
 

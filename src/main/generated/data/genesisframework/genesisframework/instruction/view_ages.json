@@ -1,0 +1,31 @@
+{
+  "criteria": {
+    "view_ages": {
+      "conditions": {
+        "advancement": "genesisframework:age/root"
+      },
+      "trigger": "genesisframework:open_advancement_tab"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "instruction.genesisframework.view_ages.description",
+      "with": [
+        {
+          "keybind": "key.advancements"
+        }
+      ]
+    },
+    "icon": {
+      "id": "genesisframework:age_book"
+    },
+    "title": {
+      "translate": "instruction.genesisframework.view_ages"
+    }
+  },
+  "requirements": [
+    [
+      "view_ages"
+    ]
+  ]
+}

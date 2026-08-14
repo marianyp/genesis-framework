@@ -1,14 +1,15 @@
 package dev.mariany.genesisframework.packet.clientbound;
 
 import dev.mariany.genesisframework.GenesisFramework;
+import dev.mariany.genesisframework.age.AgeMetadata;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 public record NotifyAgeLockedPayload(
-        String itemTranslation,
-        String ageTranslation,
+        String restrictedTranslation,
+        AgeMetadata ageMetadata,
         boolean clickInteraction
 ) implements CustomPacketPayload {
     public static final Type<NotifyAgeLockedPayload> ID = new Type<>(
@@ -17,8 +18,8 @@ public record NotifyAgeLockedPayload(
 
     public static final StreamCodec<RegistryFriendlyByteBuf, NotifyAgeLockedPayload> STREAM_CODEC =
             StreamCodec.composite(
-                    ByteBufCodecs.STRING_UTF8, NotifyAgeLockedPayload::itemTranslation,
-                    ByteBufCodecs.STRING_UTF8, NotifyAgeLockedPayload::ageTranslation,
+                    ByteBufCodecs.STRING_UTF8, NotifyAgeLockedPayload::restrictedTranslation,
+                    AgeMetadata.STREAM_CODEC, NotifyAgeLockedPayload::ageMetadata,
                     ByteBufCodecs.BOOL, NotifyAgeLockedPayload::clickInteraction,
                     NotifyAgeLockedPayload::new
             );

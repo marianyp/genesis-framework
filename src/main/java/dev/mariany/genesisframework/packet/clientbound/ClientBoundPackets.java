@@ -1,67 +1,97 @@
 package dev.mariany.genesisframework.packet.clientbound;
 
-import dev.mariany.genesisframework.client.age.ClientAgeManager;
-import dev.mariany.genesisframework.client.instruction.ClientInstructionManager;
+import dev.mariany.genesisframework.client.GenesisFrameworkClient;
+import dev.mariany.genesisframework.GenesisFramework;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.ToastManager;
 import net.minecraft.client.gui.components.toasts.TutorialToast;
 import net.minecraft.network.chat.Component;
 
-public class ClientBoundPackets {
-    public static void init() {
+public final class ClientBoundPackets {
+    private ClientBoundPackets() {
+    }
+
+    public static void bootstrap() {
+        GenesisFramework.bootstrapLog("Client Bound Packets");
+
         ClientPlayNetworking.registerGlobalReceiver(
-                UpdateLockedItemsPayload.ID,
-                (payload, context) ->
-                        context.client().executeIfPossible(
-                                () -> ClientAgeManager.getInstance().updateLockedItems(payload.items())
-                        )
+                AgeItemRestrictionsPayload.ID,
+                ClientBoundPackets::handleSyncAgeItemRestrictions
         );
 
         ClientPlayNetworking.registerGlobalReceiver(
-                UpdateItemTraitsPayload.ID,
-                (payload, context) ->
-                        context.client().executeIfPossible(
-                                () -> ClientAgeManager.getInstance().updateTraits(payload.traitsByLanguageKey())
-                        )
+                PartialAgeItemRestrictionsPayload.ID,
+                ClientBoundPackets::handleUpdateAgeItemRestrictions
         );
 
         ClientPlayNetworking.registerGlobalReceiver(
                 UpdateInstructionsPayload.ID,
-                (payload, context) ->
-                        context.client()
-                               .executeIfPossible(
-                                       () -> ClientInstructionManager
-                                               .getInstance()
-                                               .updateInstructionAdvancements(payload.instructions())
-                               )
+                ClientBoundPackets::handleUpdateInstructions
         );
 
         ClientPlayNetworking.registerGlobalReceiver(
                 NotifyAgeLockedPayload.ID,
-                (payload, context) -> {
-                    Minecraft client = context.client();
-                    ToastManager toastManager = client.gui.toastManager();
+                ClientBoundPackets::handleNotifyAgeLocked
+        );
+    }
 
-                    if (toastManager.getToast(TutorialToast.class, TutorialToast.NO_TOKEN) != null) {
-                        return;
-                    }
+    private static void handleSyncAgeItemRestrictions(
+            AgeItemRestrictionsPayload payload,
+            ClientPlayNetworking.Context context
+    ) {
+        context.client().executeIfPossible(
+                () -> GenesisFrameworkClient.getAgeManager().updateItemRestrictions(payload.ageItemRestrictions())
+        );
+    }
 
-                    toastManager.addToast(new TutorialToast(
-                            client.font,
-                            payload.clickInteraction() ? TutorialToast.Icons.RIGHT_CLICK :
-                                    TutorialToast.Icons.SOCIAL_INTERACTIONS,
-                            Component.translatable(
-                                    "tutorial.genesisframework.ageLocked",
-                                    Component.translatable(payload.ageTranslation()),
-                                    Component.translatable("age.genesisframework.age"),
-                                    Component.translatable(payload.itemTranslation())
-                            ),
-                            null,
-                            true,
-                            5000
-                    ));
-                }
+    private static void handleUpdateAgeItemRestrictions(
+            PartialAgeItemRestrictionsPayload payload,
+            ClientPlayNetworking.Context context
+    ) {
+        context.client().executeIfPossible(
+                () -> GenesisFrameworkClient
+                        .getAgeManager()
+                        .updateItemRestrictions(payload.ageItemRestrictions())
+        );
+    }
+
+    private static void handleUpdateInstructions(
+            UpdateInstructionsPayload payload,
+            ClientPlayNetworking.Context context
+    ) {
+        context.client().executeIfPossible(
+                () -> GenesisFrameworkClient
+                        .getInstructionManager()
+                        .updateInstructionAdvancements(payload.instructions())
+        );
+    }
+
+    private static void handleNotifyAgeLocked(NotifyAgeLockedPayload payload, ClientPlayNetworking.Context context) {
+        Minecraft client = context.client();
+        ToastManager toastManager = client.gui.toastManager();
+
+        if (toastManager.getToast(TutorialToast.class, TutorialToast.NO_TOKEN) != null) {
+            return;
+        }
+
+        TutorialToast.Icons icons = payload.clickInteraction() ?
+                TutorialToast.Icons.RIGHT_CLICK :
+                TutorialToast.Icons.SOCIAL_INTERACTIONS;
+
+        toastManager.addToast(
+                new TutorialToast(
+                        client.font,
+                        icons,
+                        Component.translatable(
+                                "tutorial.genesisframework.age_locked.named",
+                                payload.ageMetadata().component(),
+                                Component.translatable(payload.restrictedTranslation())
+                        ),
+                        null,
+                        true,
+                        5000
+                )
         );
     }
 }

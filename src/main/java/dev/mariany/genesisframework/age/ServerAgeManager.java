@@ -1,13 +1,23 @@
 package dev.mariany.genesisframework.age;
 
-import dev.mariany.genesisframework.item.ItemTrait;
+import dev.mariany.genesisframework.advancement.DynamicAdvancementManager;
+import dev.mariany.genesisframework.event.server.age.ServerAgeEvents;
+import dev.mariany.genesisframework.event.server.advancement.ServerAdvancementEvents;
+import dev.mariany.genesisframework.item.GFItems;
+import dev.mariany.genesisframework.item.trait.ItemTrait;
+import dev.mariany.genesisframework.item.trait.ItemTraitManager;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.*;
+import net.minecraft.advancements.triggers.CriteriaTriggers;
+import net.minecraft.advancements.triggers.Criterion;
+import net.minecraft.advancements.triggers.PlayerTrigger;
+import net.minecraft.core.ClientAsset;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
@@ -15,32 +25,105 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ServerAgeManager {
-    private static final ServerAgeManager INSTANCE = new ServerAgeManager();
-
+public class ServerAgeManager extends DynamicAdvancementManager {
     private final Map<Identifier, AgeEntry> ages = new Object2ObjectOpenHashMap<>();
 
-    public static ServerAgeManager getInstance() {
-        return INSTANCE;
+    private final ItemTraitManager itemTraitManager = new ItemTraitManager(
+            this::getItemAttributeModifiers,
+            this::getAllItemTraits
+    );
+
+    @Override
+    public void bootstrap() {
+        super.bootstrap();
+
+        this.itemTraitManager.bootstrap();
+
+        ServerAgeEvents.SYNC.register(this::onAgeSync);
+        ServerAdvancementEvents.ALLOW_AWARD.register(this::shouldAllowAward);
     }
 
-    public void onEquipmentUpdate(ServerPlayer player) {
-        AgeAttributeManager.onEquipmentUpdate(
-                player,
-                stack -> this.getItemAttributeModifiers(player, stack),
-                this::getAllItemTraits
+    public void onAgeSync(ServerPlayer serverPlayer) {
+        this.itemTraitManager.onEquipmentChange(serverPlayer);
+    }
+
+    private boolean shouldAllowAward(ServerPlayer player, AdvancementHolder advancement) {
+        Optional<AgeEntry> optionalAgeEntry = this.find(advancement);
+
+        if (optionalAgeEntry.isEmpty()) {
+            return true;
+        }
+
+        Age age = optionalAgeEntry.get().getAge();
+        Optional<Identifier> optionalParentId = age.parent();
+
+        if (!age.requiresParent() || optionalParentId.isEmpty()) {
+            return true;
+        }
+
+        while (optionalParentId.isPresent()) {
+            Optional<AgeEntry> optionalParent = this.get(optionalParentId.get());
+
+            if (optionalParent.isEmpty()) {
+                break;
+            }
+
+            AgeEntry parentAgeEntry = optionalParent.get();
+            Age parentAge = parentAgeEntry.getAge();
+
+            if (parentAge.requiresParent()) {
+                return parentAgeEntry.isDone(player);
+            }
+
+            optionalParentId = parentAge.parent();
+        }
+
+        return true;
+    }
+
+    @Override
+    protected AdvancementHolder createRootAdvancement() {
+        return new AdvancementHolder(
+                AgeEntry.ROOT_ADVANCEMENT_ID,
+                new Advancement(
+                        Optional.empty(),
+                        Optional.of(
+                                new DisplayInfo(
+                                        new ItemStackTemplate(GFItems.AGE_BOOK),
+                                        Component.translatable("advancements.genesisframework.ages.title"),
+                                        Component.empty(),
+                                        Optional.of(
+                                                new ClientAsset.ResourceTexture(
+                                                        Identifier.withDefaultNamespace("block/dark_oak_planks")
+                                                )
+                                        ),
+                                        AdvancementType.TASK,
+                                        false,
+                                        false,
+                                        false
+                                )
+                        ),
+                        AdvancementRewards.EMPTY,
+                        Map.of(
+                                "root",
+                                new Criterion<>(
+                                        CriteriaTriggers.TICK,
+                                        PlayerTrigger.TriggerInstance.tick().triggerInstance()
+                                )
+                        ),
+                        AdvancementRequirements.allOf(List.of("root")),
+                        false
+                )
         );
     }
 
-    public void onEquipmentUpdate(ServerPlayer player, Map<EquipmentSlot, ItemStack> changedItems) {
-        AgeAttributeManager.onEquipmentUpdate(
-                player,
-                changedItems,
-                stack -> this.getItemAttributeModifiers(player, stack),
-                this::getAllItemTraits
-        );
+    @Override
+    protected List<AdvancementHolder> getAdvancements() {
+        return this.getAges().stream().map(AgeEntry::getAdvancementHolder).toList();
     }
 
     public boolean isAgeGuarded(ItemLike item) {
@@ -59,8 +142,8 @@ public class ServerAgeManager {
                    );
     }
 
-    public boolean isUnlocked(ServerPlayer player, ResourceKey<Level> worldRegistryKey) {
-        return allUnlocked(player, getRequiredAges(worldRegistryKey));
+    public boolean isUnlocked(ServerPlayer player, ResourceKey<Level> levelResourceKey) {
+        return allUnlocked(player, getRequiredAges(levelResourceKey));
     }
 
     public boolean isUnlocked(ServerPlayer player, Block block) {
@@ -91,53 +174,43 @@ public class ServerAgeManager {
         while (ageEntry.isDone(player)) {
             Optional<Identifier> parentId = ageEntry.getAge().parent();
 
-            if (parentId.isPresent()) {
-                AgeEntry parentEntry = this.ages.get(parentId.get());
-
-                if (parentEntry != null) {
-                    ageEntry = parentEntry;
-                    continue;
-                }
+            if (parentId.isEmpty()) {
+                return true;
             }
 
-            return true;
+            AgeEntry parentEntry = this.ages.get(parentId.get());
+
+            if (parentEntry == null) {
+                return true;
+            }
+
+            ageEntry = parentEntry;
         }
 
         return false;
     }
 
     public List<AgeEntry> getRequiredAges(ItemStack stack) {
-        List<AgeEntry> requiredAges = new ArrayList<>();
-
-        for (AgeEntry placedAge : this.getAges()) {
-            List<Ingredient> itemUnlocks = placedAge.getAge().items();
-
-            for (Ingredient ingredient : itemUnlocks) {
-                if (ingredient.test(stack)) {
-                    requiredAges.add(placedAge);
-                    break;
-                }
-            }
-        }
-
-        return requiredAges;
+        return this.getAges()
+                   .stream()
+                   .filter(age -> age.getAge().items().stream().anyMatch(ingredient -> ingredient.test(stack)))
+                   .toList();
     }
 
-    public List<AgeEntry> getRequiredAges(ResourceKey<Level> worldRegistryKey) {
-        List<AgeEntry> requiredAges = new ArrayList<>();
-
-        for (AgeEntry placedAge : this.getAges()) {
-            List<ResourceKey<Level>> dimensions = placedAge.getAge().dimensions();
-
-            for (ResourceKey<Level> dimension : dimensions) {
-                if (worldRegistryKey.identifier().equals(dimension.identifier())) {
-                    requiredAges.add(placedAge);
-                    break;
-                }
-            }
-        }
-
-        return requiredAges;
+    public List<AgeEntry> getRequiredAges(ResourceKey<Level> levelResourceKey) {
+        return this.getAges()
+                   .stream()
+                   .filter(age -> age
+                           .getAge()
+                           .dimensions()
+                           .stream()
+                           .anyMatch(
+                                   dimension -> levelResourceKey
+                                           .identifier()
+                                           .equals(dimension.identifier())
+                           )
+                   )
+                   .toList();
     }
 
     public Optional<AgeEntry> find(AdvancementHolder advancementEntry) {
@@ -145,10 +218,6 @@ public class ServerAgeManager {
                    .stream()
                    .filter(ageEntry -> ageEntry.getAdvancementHolder().id().equals(advancementEntry.id()))
                    .findAny();
-    }
-
-    public Optional<AgeEntry> find(Age age) {
-        return this.getAges().stream().filter(ageEntry -> ageEntry.getAge().equals(age)).findAny();
     }
 
     public Optional<AgeEntry> get(Identifier id) {
@@ -159,15 +228,20 @@ public class ServerAgeManager {
         return this.ages.values();
     }
 
-    public List<Ingredient> getLockedItems(ServerPlayer player) {
-        return getPlayerAges(player, false)
-                .stream()
-                .flatMap(ageEntry -> ageEntry.getAge().items().stream())
-                .toList();
+    public Map<AgeEntry, List<Ingredient>> getLockedItemsByAge(ServerPlayer player) {
+        return this.getPlayerAges(player, false)
+                   .stream()
+                   .collect(Collectors.toMap(ageEntry -> ageEntry, ageEntry -> ageEntry.getAge().items()));
     }
 
-    public List<ItemAttributeModifiers> getItemAttributeModifiers(ServerPlayer player, ItemStack stack) {
-        return this.getActiveTraits(player)
+    public Map<AgeEntry, List<Ingredient>> getGatedItemsByAge() {
+        return this.getAges()
+                   .stream()
+                   .collect(Collectors.toMap(Function.identity(), AgeEntry::getItems));
+    }
+
+    private List<ItemAttributeModifiers> getItemAttributeModifiers(ServerPlayer serverPlayer, ItemStack stack) {
+        return this.getActiveTraits(serverPlayer)
                    .values()
                    .stream()
                    .flatMap(Collection::stream)
@@ -176,21 +250,23 @@ public class ServerAgeManager {
                    .toList();
     }
 
-    public Map<AgeEntry, List<ItemTrait>> getActiveTraits(ServerPlayer player) {
+    public Map<AgeEntry, List<ItemTrait>> getActiveTraits(ServerPlayer serverPlayer) {
         Map<AgeEntry, List<ItemTrait>> activeTraits = new HashMap<>();
 
         for (AgeEntry age : this.getAges()) {
-            List<ItemTrait> itemTraits = collectItemTraits(age, player);
+            List<ItemTrait> itemTraits = collectItemTraits(serverPlayer, age);
 
-            if (!itemTraits.isEmpty()) {
-                activeTraits.put(age, itemTraits);
+            if (itemTraits.isEmpty()) {
+                continue;
             }
+
+            activeTraits.put(age, itemTraits);
         }
 
         return activeTraits;
     }
 
-    public List<ItemTrait> getAllItemTraits() {
+    private List<ItemTrait> getAllItemTraits() {
         return this.getAges()
                    .stream()
                    .map(ageEntry -> ageEntry.getAge().itemTraits())
@@ -207,7 +283,7 @@ public class ServerAgeManager {
         return Stream.concat(ageItemTraits.beforeDone().stream(), ageItemTraits.afterDone().stream());
     }
 
-    private static List<ItemTrait> collectItemTraits(AgeEntry ageEntry, ServerPlayer player) {
+    private static List<ItemTrait> collectItemTraits(ServerPlayer player, AgeEntry ageEntry) {
         Age age = ageEntry.getAge();
         boolean done = ageEntry.isDone(player);
 

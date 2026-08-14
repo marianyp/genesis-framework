@@ -1,32 +1,62 @@
 package dev.mariany.genesisframework.server.command;
 
+import dev.mariany.genesisframework.GenesisFramework;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
 import dev.mariany.genesisframework.age.Age;
 import dev.mariany.genesisframework.age.AgeEntry;
-import dev.mariany.genesisframework.age.ServerAgeManager;
 import dev.mariany.genesisframework.age.AgeShareManager;
-import dev.mariany.genesisframework.registry.GFRegistryKeys;
+import dev.mariany.genesisframework.event.server.command.ServerCommandEvents;
+import dev.mariany.genesisframework.registry.GFRegistries;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceKeyArgument;
+import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 import java.util.List;
 import java.util.Optional;
 
-public class AgeCommand {
+public final class AgeCommand {
     private static final DynamicCommandExceptionType AGE_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(
             id -> Component.translatableEscape("genesisframework.age.ageNotFound", id)
     );
+
+    private AgeCommand() {
+    }
+
+    public static void bootstrap() {
+        GenesisFramework.bootstrapLog("Age Command");
+        ServerCommandEvents.SUGGEST_REGISTRY_ELEMENTS.register(AgeCommand::suggestAgeIds);
+    }
+
+    private static Optional<CompletableFuture<Suggestions>> suggestAgeIds(
+            ResourceKey<? extends Registry<?>> key,
+            SharedSuggestionProvider.ElementSuggestionType suggestionType,
+            SuggestionsBuilder builder,
+            CommandContext<?> context
+    ) {
+        if (key != GFRegistries.AGE) {
+            return Optional.empty();
+        }
+
+        return Optional.of(SharedSuggestionProvider.suggestResource(
+                GenesisFramework.getServerAgeManager().getAges().stream().map(AgeEntry::getId),
+                builder
+        ));
+    }
 
     public static void register(
             CommandDispatcher<CommandSourceStack> dispatcher
@@ -58,7 +88,7 @@ public class AgeCommand {
                                 .then(Commands.argument("targets", EntityArgument.players()).then(
                                                 Commands.argument(
                                                                 "age",
-                                                                ResourceKeyArgument.key(GFRegistryKeys.AGE)
+                                                                ResourceKeyArgument.key(GFRegistries.AGE)
                                                         )
                                                         .executes(context ->
                                                                 executeGive(
@@ -77,7 +107,7 @@ public class AgeCommand {
                                 .then(Commands.argument("targets", EntityArgument.players()).then(
                                                 Commands.argument(
                                                                 "age",
-                                                                ResourceKeyArgument.key(GFRegistryKeys.AGE)
+                                                                ResourceKeyArgument.key(GFRegistries.AGE)
                                                         )
                                                         .executes(context ->
                                                                 executeTake(
@@ -141,7 +171,7 @@ public class AgeCommand {
     private static boolean takeAge(ServerPlayer player, AgeEntry ageEntry) {
         boolean removed = AdvancementHelper.revokeAdvancement(player, ageEntry.getAdvancementHolder());
 
-        List<AgeEntry> children = ServerAgeManager.getInstance()
+        List<AgeEntry> children = GenesisFramework.getServerAgeManager()
                                                   .getAges()
                                                   .stream()
                                                   .filter(otherAge ->
@@ -162,15 +192,15 @@ public class AgeCommand {
         ResourceKey<Age> registryKey = ResourceKeyArgument.getRegistryKey(
                 context,
                 "age",
-                GFRegistryKeys.AGE,
+                GFRegistries.AGE,
                 AGE_NOT_FOUND_EXCEPTION
         );
-        Optional<AgeEntry> optionalAgeEntry = ServerAgeManager.getInstance().get(registryKey.identifier());
+        Optional<AgeEntry> optionalAgeEntry = GenesisFramework.getServerAgeManager().get(registryKey.identifier());
 
         if (optionalAgeEntry.isEmpty()) {
             throw AGE_NOT_FOUND_EXCEPTION.create(registryKey.identifier());
-        } else {
-            return optionalAgeEntry.get();
         }
+
+        return optionalAgeEntry.get();
     }
 }

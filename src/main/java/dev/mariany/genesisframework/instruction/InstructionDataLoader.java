@@ -1,29 +1,25 @@
 package dev.mariany.genesisframework.instruction;
 
-import com.google.common.collect.ImmutableMap;
-import dev.mariany.genesisframework.registry.GFRegistryKeys;
+import dev.mariany.genesisframework.GenesisFramework;
+import dev.mariany.genesisframework.registry.GFRegistries;
+import dev.mariany.genesisframework.resource.CodecDataResourceReloadListener;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
-import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.server.packs.resources.PreparableReloadListener;
 
 import java.util.Map;
 
-public class InstructionDataLoader extends SimpleJsonResourceReloadListener<Instruction> {
+public class InstructionDataLoader extends CodecDataResourceReloadListener<Instruction> {
     public InstructionDataLoader(HolderLookup.Provider registries) {
-        super(registries, Instruction.CODEC, GFRegistryKeys.INSTRUCTION);
+        super(registries, Instruction.CODEC, GFRegistries.INSTRUCTION);
     }
 
     @Override
-    protected void apply(Map<Identifier, Instruction> map, ResourceManager manager, ProfilerFiller profiler) {
-        ServerInstructionManager serverInstructionManager = ServerInstructionManager.getInstance();
+    protected void apply(Map<Identifier, Instruction> prepared, PreparableReloadListener.SharedState state) {
+        ServerInstructionManager serverInstructionManager = GenesisFramework.getServerInstructionManager();
         serverInstructionManager.clear();
-
-        ImmutableMap.Builder<Identifier, InstructionEntry> builder = ImmutableMap.builder();
-
-        map.forEach((id, instruction) -> builder.put(id, new InstructionEntry(id, instruction)));
-
-        builder.buildOrThrow().values().forEach(serverInstructionManager::add);
+        prepared.forEach((id, instruction) -> serverInstructionManager.add(
+                new InstructionEntry(id, instruction)
+        ));
     }
 }

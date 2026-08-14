@@ -5,7 +5,10 @@ import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.level.ServerPlayer;
 
-public class AdvancementHelper {
+public final class AdvancementHelper {
+    private AdvancementHelper() {
+    }
+
     public static boolean giveAdvancement(ServerPlayer player, AdvancementHolder advancementEntry) {
         PlayerAdvancements tracker = player.getAdvancements();
         AdvancementProgress progress = tracker.getOrStartProgress(advancementEntry);

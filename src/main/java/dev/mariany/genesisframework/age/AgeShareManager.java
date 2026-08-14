@@ -4,11 +4,13 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
+import dev.mariany.genesisframework.event.server.advancement.ServerAdvancementEvents;
 import dev.mariany.genesisframework.gamerule.GFGameRules;
 import net.fabricmc.fabric.api.gamerule.v1.GameRuleEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -49,6 +51,7 @@ public class AgeShareManager extends SavedData {
     public static void bootstrap() {
         GenesisFramework.bootstrapLog("Age Share Manager");
         ServerPlayConnectionEvents.JOIN.register(AgeShareManager::onPlayerJoin);
+        ServerAdvancementEvents.AWARDED.register(AgeShareManager::onAdvancementAwarded);
         GameRuleEvents.changeCallback(GFGameRules.AGE_SHARING).register(AgeShareManager::onGameRuleChange);
     }
 
@@ -60,6 +63,33 @@ public class AgeShareManager extends SavedData {
         ServerPlayer serverPlayer = serverPlayNetworkHandler.player;
         GenesisFramework.LOGGER.info("Preparing to apply shared ages to {}", serverPlayer);
         getServerState(server).applySharedAges(serverPlayer);
+    }
+
+    private static void onAdvancementAwarded(ServerPlayer player, AdvancementHolder advancement) {
+        GenesisFramework.getServerAgeManager()
+                        .find(advancement)
+                        .filter(ageEntry -> ageEntry.isDone(player))
+                        .ifPresent(ageEntry -> onAdvancementAwarded(player, ageEntry));
+    }
+
+    private static void onAdvancementAwarded(ServerPlayer player, AgeEntry ageEntry) {
+        ServerLevel serverLevel = player.level();
+        MinecraftServer server = serverLevel.getServer();
+        GameRules gameRules = server.getGameRules();
+        AgeSharingOption ageSharingOption = gameRules.get(GFGameRules.AGE_SHARING);
+
+        if (ageSharingOption == AgeSharingOption.DISABLED) {
+            return;
+        }
+
+        AgeShareManager ageShareManager = getServerState(server);
+
+        if (ageSharingOption == AgeSharingOption.TEAMS) {
+            ageShareManager.shareWithTeam(player, ageEntry);
+            return;
+        }
+
+        ageShareManager.shareWithServer(server, ageEntry);
     }
 
     private static void onGameRuleChange(AgeSharingOption ageSharingOption, MinecraftServer server) {
@@ -77,25 +107,6 @@ public class AgeShareManager extends SavedData {
         }
     }
 
-    public static void onAdvancementAwarded(ServerPlayer player, AgeEntry ageEntry) {
-        ServerLevel serverLevel = player.level();
-        MinecraftServer server = serverLevel.getServer();
-        GameRules gameRules = server.getGameRules();
-        AgeSharingOption ageSharingOption = gameRules.get(GFGameRules.AGE_SHARING);
-
-        if (ageSharingOption == AgeSharingOption.DISABLED) {
-            return;
-        }
-
-        AgeShareManager ageShareManager = getServerState(server);
-
-        if (ageSharingOption == AgeSharingOption.TEAMS) {
-            ageShareManager.shareWithTeam(player, ageEntry);
-        } else {
-            ageShareManager.shareWithServer(server, ageEntry);
-        }
-    }
-
     public static AgeShareManager getServerState(MinecraftServer server) {
         SavedDataStorage persistentStateManager = server.overworld().getDataStorage();
 
@@ -107,21 +118,20 @@ public class AgeShareManager extends SavedData {
     }
 
     public int clear(boolean global) {
-        int cleared;
-
         if (global) {
-            cleared = this.globalAges.size();
-            this.globalAges.clear();
-        } else {
-            cleared = this.teamAges.values().stream()
-                                   .mapToInt(Set::size)
-                                   .sum();
-
-            this.teamAges.clear();
+            return this.clearGlobalAges();
         }
 
+        int cleared = this.teamAges.values().stream().mapToInt(Set::size).sum();
+        this.teamAges.clear();
         this.setDirty();
+        return cleared;
+    }
 
+    private int clearGlobalAges() {
+        int cleared = this.globalAges.size();
+        this.globalAges.clear();
+        this.setDirty();
         return cleared;
     }
 
@@ -138,21 +148,32 @@ public class AgeShareManager extends SavedData {
             return;
         }
 
-        ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
+        ServerAgeManager serverAgeManager = GenesisFramework.getServerAgeManager();
         Set<Identifier> agesToApply = new HashSet<>(this.globalAges);
 
-        if (ageSharingOption == AgeSharingOption.TEAMS) {
-            PlayerTeam team = serverPlayer.getTeam();
-
-            if (team != null) {
-                Set<Identifier> teamAges = this.teamAges.getOrDefault(team.getName(), new HashSet<>());
-                agesToApply.addAll(teamAges);
-            }
-        }
+        this.addTeamAges(serverPlayer, ageSharingOption, agesToApply);
 
         for (Identifier ageId : agesToApply) {
             serverAgeManager.get(ageId).ifPresent(ageEntry -> progressPlayerToAge(serverPlayer, ageEntry));
         }
+    }
+
+    private void addTeamAges(
+            ServerPlayer player,
+            AgeSharingOption ageSharingOption,
+            Set<Identifier> ages
+    ) {
+        if (ageSharingOption != AgeSharingOption.TEAMS) {
+            return;
+        }
+
+        PlayerTeam team = player.getTeam();
+
+        if (team == null) {
+            return;
+        }
+
+        ages.addAll(this.teamAges.getOrDefault(team.getName(), Set.of()));
     }
 
     public void shareWithServer(MinecraftServer server, AgeEntry ageEntry) {
@@ -169,24 +190,26 @@ public class AgeShareManager extends SavedData {
     public void shareWithTeam(ServerPlayer player, AgeEntry ageEntry) {
         PlayerTeam team = player.getTeam();
 
-        if (team != null) {
-            String teamName = team.getName();
-            Set<Identifier> ages = teamAges.getOrDefault(teamName, new HashSet<>());
-            ages.add(ageEntry.getId());
-
-            teamAges.put(teamName, ages);
-            this.setDirty();
-
-            List<ServerPlayer> sharingPlayers = getSharingPlayers(player.level().getServer(), team);
-
-            GenesisFramework.LOGGER.info(
-                    "Preparing to shared ages with {} players on team {}",
-                    sharingPlayers.size(),
-                    teamName
-            );
-
-            progressPlayersToAge(sharingPlayers, ageEntry);
+        if (team == null) {
+            return;
         }
+
+        String teamName = team.getName();
+        Set<Identifier> ages = teamAges.getOrDefault(teamName, new HashSet<>());
+        ages.add(ageEntry.getId());
+
+        teamAges.put(teamName, ages);
+        this.setDirty();
+
+        List<ServerPlayer> sharingPlayers = getSharingPlayers(player.level().getServer(), team);
+
+        GenesisFramework.LOGGER.info(
+                "Preparing to shared ages with {} players on team {}",
+                sharingPlayers.size(),
+                teamName
+        );
+
+        progressPlayersToAge(sharingPlayers, ageEntry);
     }
 
     private static List<ServerPlayer> getSharingPlayers(MinecraftServer server) {
@@ -194,16 +217,16 @@ public class AgeShareManager extends SavedData {
     }
 
     private static List<ServerPlayer> getSharingPlayers(MinecraftServer server, @Nullable PlayerTeam team) {
-        if (team != null) {
-            PlayerList playerManager = server.getPlayerList();
-            List<ServerPlayer> players = playerManager.getPlayers();
-
-            return players.stream()
-                          .filter(serverPlayer -> serverPlayer.getTeam() == team)
-                          .toList();
+        if (team == null) {
+            return server.getPlayerList().getPlayers();
         }
 
-        return server.getPlayerList().getPlayers();
+        PlayerList playerManager = server.getPlayerList();
+        List<ServerPlayer> players = playerManager.getPlayers();
+
+        return players.stream()
+                      .filter(serverPlayer -> serverPlayer.getTeam() == team)
+                      .toList();
     }
 
     public static void progressPlayerToAge(ServerPlayer player, AgeEntry ageEntry) {
@@ -211,23 +234,34 @@ public class AgeShareManager extends SavedData {
     }
 
     public static int progressPlayersToAge(Collection<ServerPlayer> players, AgeEntry ageEntry) {
-        Optional<Identifier> parentAgeId = ageEntry.getAge().parent();
-
-        int success = 0;
-
-        if (parentAgeId.isPresent() && ageEntry.getAge().requiresParent()) {
-            ServerAgeManager serverAgeManager = ServerAgeManager.getInstance();
-            Optional<AgeEntry> optionalParentAgeEntry = serverAgeManager.get(parentAgeId.get());
-            optionalParentAgeEntry.ifPresent(entry -> progressPlayersToAge(players, entry));
-        }
+        progressPlayersToParentAge(players, ageEntry);
+        int progressed = 0;
 
         for (ServerPlayer player : players) {
-            if (AdvancementHelper.giveAdvancement(player, ageEntry.getAdvancementHolder())) {
-                ++success;
+            if (!AdvancementHelper.giveAdvancement(player, ageEntry.getAdvancementHolder())) {
+                continue;
             }
+
+            ++progressed;
         }
 
-        return success;
+        return progressed;
+    }
+
+    private static void progressPlayersToParentAge(Collection<ServerPlayer> players, AgeEntry ageEntry) {
+        if (!ageEntry.getAge().requiresParent()) {
+            return;
+        }
+
+        Optional<Identifier> parentAgeId = ageEntry.getAge().parent();
+
+        if (parentAgeId.isEmpty()) {
+            return;
+        }
+
+        GenesisFramework.getServerAgeManager()
+                        .get(parentAgeId.get())
+                        .ifPresent(parent -> progressPlayersToAge(players, parent));
     }
 
     public void unpack(Packed packed) {

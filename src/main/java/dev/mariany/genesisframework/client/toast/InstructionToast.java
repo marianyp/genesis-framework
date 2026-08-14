@@ -8,6 +8,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.toasts.Toast;
 import net.minecraft.client.gui.components.toasts.ToastManager;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.CommonColors;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Environment(EnvType.CLIENT)
 public class InstructionToast implements HideableToast {
@@ -37,10 +39,14 @@ public class InstructionToast implements HideableToast {
     private static final int TOAST_PADDING_BOTTOM = 3;
     private static final int TOAST_PADDING_TOP = 7;
 
-    private Toast.Visibility visibility = Toast.Visibility.SHOW;
+    private final Font font;
     private final ItemStack icon;
+    private final List<Component> components;
     private final List<FormattedCharSequence> text;
-    private final int width;
+
+    private Toast.Visibility visibility = Toast.Visibility.SHOW;
+    private Language language;
+    private int width;
 
     public InstructionToast(
             Font font,
@@ -48,36 +54,62 @@ public class InstructionToast implements HideableToast {
             Component title,
             @Nullable Component description
     ) {
+        this.font = font;
         this.icon = icon.create();
 
-        ArrayList<Component> components = new ArrayList<>(MAX_TEXT_ROWS);
+        this.components = new ArrayList<>(MAX_TEXT_ROWS);
         this.text = new ArrayList<>(MAX_TEXT_ROWS);
 
-        components.add(title.copy().withColor(CommonColors.DARK_PURPLE));
+        this.components.add(title.copy().withColor(CommonColors.DARK_PURPLE));
 
         if (description != null) {
-            components.add(description);
+            this.components.add(description);
         }
+
+        this.refresh();
+    }
+
+    @Override
+    public void refresh() {
+        HideableToast.super.refresh();
+        this.refreshText();
+    }
+
+    private void refreshText() {
+        if (!this.refreshLanguage()) {
+            return;
+        }
+
+        this.text.clear();
 
         int maxTextWidth = MAX_WIDTH - TEXT_X - TOAST_PADDING_RIGHT;
 
-        components
+        this.components
                 .stream()
-                .map(component -> font.split(component, maxTextWidth))
+                .map(component -> this.font.split(component, maxTextWidth))
                 .forEach(this.text::addAll);
 
         int largestLineWidth = this.text
                 .stream()
-                .mapToInt(font::width)
+                .mapToInt(this.font::width)
                 .max()
                 .orElse(0);
 
         int desiredWidth = TEXT_X + largestLineWidth + TOAST_PADDING_RIGHT;
 
-        this.width = Math.max(
-                MIN_WIDTH,
-                Math.min(MAX_WIDTH, desiredWidth)
-        );
+        this.width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, desiredWidth));
+    }
+
+    private boolean refreshLanguage() {
+        Language language = Language.getInstance();
+
+        if (Objects.equals(this.language, language)) {
+            return false;
+        }
+
+        this.language = language;
+
+        return true;
     }
 
     @Override
@@ -91,6 +123,7 @@ public class InstructionToast implements HideableToast {
 
     @Override
     public void update(ToastManager manager, long time) {
+        this.refreshText();
     }
 
     @Override
@@ -109,6 +142,8 @@ public class InstructionToast implements HideableToast {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, Font textRenderer, long startTime) {
+        this.refreshText();
+
         context.blitSprite(RenderPipelines.GUI_TEXTURED, TEXTURE, 0, 0, this.width(), this.height());
 
         context.blitSprite(

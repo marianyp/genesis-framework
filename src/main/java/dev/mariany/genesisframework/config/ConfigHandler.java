@@ -29,22 +29,21 @@ public class ConfigHandler<T> {
     }
 
     public T getConfig() {
-        if (this.config == null) {
-            return this.defaultConfig;
-        }
-
-        return this.config;
+        return this.config == null ? this.defaultConfig : this.config;
     }
 
     @SuppressWarnings("unchecked")
     public void loadConfig() {
-        if (this.file.exists()) {
-            try (FileReader reader = new FileReader(this.file)) {
-                this.config = (T) GSON.fromJson(reader, this.defaultConfig.getClass());
-            } catch (IOException error) {
-                this.config = this.defaultConfig;
-                LOGGER.error("Failed to load config: {}", error.getMessage());
-            }
+        if (!this.file.exists()) {
+            this.saveConfig();
+            return;
+        }
+
+        try (FileReader reader = new FileReader(this.file)) {
+            this.config = (T) GSON.fromJson(reader, this.defaultConfig.getClass());
+        } catch (IOException error) {
+            this.config = this.defaultConfig;
+            LOGGER.error("Failed to load config: {}", error.getMessage());
         }
 
         this.saveConfig();
@@ -52,9 +51,7 @@ public class ConfigHandler<T> {
 
     public void saveConfig() {
         try {
-            if (this.file.getParentFile().mkdirs()) {
-                LOGGER.info("Creating parent directory for config");
-            }
+            this.createParentDirectory();
 
             try (FileWriter writer = new FileWriter(this.file)) {
                 GSON.toJson(this.config, writer);
@@ -62,5 +59,13 @@ public class ConfigHandler<T> {
         } catch (IOException error) {
             LOGGER.error("Failed to save config: {}", error.getMessage());
         }
+    }
+
+    private void createParentDirectory() {
+        if (!this.file.getParentFile().mkdirs()) {
+            return;
+        }
+
+        LOGGER.info("Creating parent directory for config");
     }
 }

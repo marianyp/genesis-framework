@@ -1,8 +1,13 @@
 {
+  "gamerule.genesisframework.age_sharing": "Compartilhamento de Eras",
+  "gamerule.genesisframework.age_sharing.description": "Controla o modo de compartilhamento de eras usado para a progressão de eras.",
   "advancements.genesisframework.ages.title": "Genesis: Eras",
   "advancements.genesisframework.instructions.title": "Genesis: Instruções",
   "age.genesisframework.age": "Era",
+  "age.genesisframework.name": "%s %s",
+  "age.genesisframework.name.categorized": "%s: %s %s",
   "age.genesisframework.title": "%s: %s",
+  "category.genesisframework.age_requirements": "Requisitos de Era",
   "commands.genesisframework.age.clear": "O cache contendo %s eras compartilhadas foi limpo",
   "commands.genesisframework.age.give.success": "Concedeu %s para %s jogadores",
   "commands.genesisframework.age.take.success": "Removeu %s de %s jogadores",
@@ -13,12 +18,17 @@
   "gamerule.sharedAgeProgression": "Progressão de Era Compartilhada",
   "gamerule.sharedAgeProgression.description": "Jogadores progridem de era ao mesmo tempo.",
   "genesisframework.age.ageNotFound": "Era desconhecida: %s",
+  "gui.genesisframework.age_requirements.description": "Eras Necessárias",
+  "gui.genesisframework.recipe_transfer.age_locked": "Bloqueada por %s",
+  "gui.genesisframework.recipe_transfer.age_locked.multiple": "Bloqueada por %s eras",
   "instruction.genesisframework.complete.title": "Guia Concluído!",
   "instruction.genesisframework.view_ages": "Ver Eras",
   "instruction.genesisframework.view_ages.description": "Pressione %s para ver a progressão de eras",
   "item.genesisframework.age_book": "Livro das Eras",
+  "lore.genesisframework.age_book": "Uma ferramenta de desenvolvedor que pode ser usada para conceder eras.",
+  "item.modifiers.genesisframework.age": "Era %s:",
   "stat.genesisframework.hostile_kills": "Monstros Hostis Mortos",
   "subtitles.genesisframework.ui.toast.instructions_complete": "Todas as Instruções Concluídas",
-  "tutorial.genesisframework.ageLocked": "Requer %s (%s) para %s",
-  "tutorial.genesisframework.ageLocked.dimension": "Dimensão"
+  "tutorial.genesisframework.age_locked.named": "Requer %s para %s",
+  "tutorial.genesisframework.age_locked.dimension": "Dimensão"
 }

@@ -1,10 +1,12 @@
 package dev.mariany.genesisframework.client.instruction;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import dev.mariany.genesisframework.client.GFClient;
+import dev.mariany.genesisframework.client.GenesisFrameworkClient;
 import dev.mariany.genesisframework.client.toast.HideableToast;
 import dev.mariany.genesisframework.client.toast.InstructionToast;
 import dev.mariany.genesisframework.client.toast.InstructionsCompleteToast;
+import dev.mariany.genesisframework.event.client.advancement.ClientAdvancementEvents;
+import dev.mariany.genesisframework.event.client.gui.ClientGuiEvents;
 import dev.mariany.genesisframework.mixin.accessor.ClientAdvancementManagerAccessor;
 import dev.mariany.genesisframework.mixin.accessor.ToastManagerAccessor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -17,6 +19,7 @@ import net.minecraft.client.multiplayer.ClientAdvancements;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.PlainTextContents;
+import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 import org.jetbrains.annotations.Nullable;
@@ -25,8 +28,6 @@ import java.util.*;
 
 @Environment(EnvType.CLIENT)
 public class ClientInstructionManager {
-    private static final ClientInstructionManager INSTANCE = new ClientInstructionManager();
-
     private static final Identifier INSTRUCTIONS_COMPLETE_TOAST_ID = GenesisFramework.id("instructions_complete");
 
     private static final int DEFAULT_QUEUE_DELAY_MILLISECONDS = 1000;
@@ -38,21 +39,27 @@ public class ClientInstructionManager {
     private boolean complete = true;
     private long queueTargetMilliseconds = -1;
 
-    private ClientInstructionManager() {
+    public void bootstrap() {
+        GenesisFramework.bootstrapLog("Client Instruction Manager");
+        ClientGuiEvents.BEFORE_TOASTS_UPDATE.register(this::update);
+        ClientAdvancementEvents.UPDATED.register(this::onAdvancementsUpdated);
     }
 
-    public static ClientInstructionManager getInstance() {
-        return INSTANCE;
+    private void onAdvancementsUpdated(
+            ClientAdvancements advancements,
+            ClientboundUpdateAdvancementsPacket packet
+    ) {
+        this.refreshInstructionToasts();
     }
 
     public void reset() {
-        GenesisFramework.LOGGER.info("Resetting instructions state");
+        GenesisFramework.LOGGER.info("Resetting Instruction Manager");
 
         this.complete = true;
         this.queueTargetMilliseconds = -1;
         this.instructionAdvancements.clear();
         this.waitingToasts.clear();
-        this.toasts.forEach((id, toast) -> toast.hide());
+        this.toasts.forEach((_, toast) -> toast.hide());
         this.toasts.clear();
     }
 
@@ -71,6 +78,8 @@ public class ClientInstructionManager {
             Identifier id = entry.getKey();
             HideableToast toast = entry.getValue();
 
+            toast.refresh();
+
             int occupiedSlotCount = toast.occcupiedSlotCount();
 
             int freeSlotsIndex = ((ToastManagerAccessor) toastManager).genesis$findFreeSlotsIndex(occupiedSlotCount);
@@ -84,13 +93,15 @@ public class ClientInstructionManager {
             this.waitingToasts.remove(id);
         }
 
-        if (this.waitingToasts.isEmpty()) {
-            this.queueTargetMilliseconds = -1;
+        if (!this.waitingToasts.isEmpty()) {
+            return;
         }
+
+        this.queueTargetMilliseconds = -1;
     }
 
     public void updateInstructionAdvancements(Collection<Identifier> changes) {
-        if (!GFClient.getConfig().displayInstructionToasts) {
+        if (!GenesisFrameworkClient.getConfig().displayInstructionToasts) {
             return;
         }
 
@@ -110,11 +121,14 @@ public class ClientInstructionManager {
     }
 
     public void removeToast(Identifier id) {
-        if (this.toasts.containsKey(id)) {
-            this.toasts.get(id).hide();
-            this.toasts.remove(id);
+        HideableToast toast = this.toasts.remove(id);
+
+        if (toast == null) {
+            this.waitingToasts.remove(id);
+            return;
         }
 
+        toast.hide();
         this.waitingToasts.remove(id);
     }
 
@@ -123,10 +137,12 @@ public class ClientInstructionManager {
 
         HideableToast toast = this.toasts.get(INSTRUCTIONS_COMPLETE_TOAST_ID);
 
-        if (toast != null) {
-            toast.hide();
+        if (toast == null) {
+            this.waitingToasts.remove(INSTRUCTIONS_COMPLETE_TOAST_ID);
+            return;
         }
 
+        toast.hide();
         this.toasts.remove(INSTRUCTIONS_COMPLETE_TOAST_ID);
         this.waitingToasts.remove(INSTRUCTIONS_COMPLETE_TOAST_ID);
     }
@@ -156,9 +172,14 @@ public class ClientInstructionManager {
 
             if (isDone || !isParentComplete) {
                 removeToast(id);
-            } else if (!this.toasts.containsKey(id)) {
-                addToast(instructionAdvancement, delayMilliseconds);
+                continue;
             }
+
+            if (this.toasts.containsKey(id)) {
+                continue;
+            }
+
+            addToast(instructionAdvancement, delayMilliseconds);
         }
 
         if (!this.toasts.isEmpty() || !this.waitingToasts.isEmpty()) {
@@ -200,21 +221,18 @@ public class ClientInstructionManager {
     }
 
     private Optional<AdvancementProgress> getAdvancementProgress(AdvancementHolder advancementEntry) {
-        Minecraft client = Minecraft.getInstance();
-        LocalPlayer clientPlayer = client.player;
+        LocalPlayer clientPlayer = Minecraft.getInstance().player;
 
-        if (clientPlayer != null) {
-            ClientAdvancements clientAdvancementManager = clientPlayer.connection.getAdvancements();
-            Map<AdvancementHolder, AdvancementProgress> advancementProgresses = (
-                    (ClientAdvancementManagerAccessor) clientAdvancementManager
-            ).genesis$advancementProgresses();
-
-            if (advancementProgresses.containsKey(advancementEntry)) {
-                return Optional.of(advancementProgresses.get(advancementEntry));
-            }
+        if (clientPlayer == null) {
+            return Optional.empty();
         }
 
-        return Optional.empty();
+        ClientAdvancements clientAdvancementManager = clientPlayer.connection.getAdvancements();
+        Map<AdvancementHolder, AdvancementProgress> advancementProgresses = (
+                (ClientAdvancementManagerAccessor) clientAdvancementManager
+        ).genesis$advancementProgresses();
+
+        return Optional.ofNullable(advancementProgresses.get(advancementEntry));
     }
 
     public void addToast(AdvancementNode placedAdvancement, int delayMilliseconds) {
@@ -226,26 +244,35 @@ public class ClientInstructionManager {
 
         removeToast(id);
 
-        optionalAdvancementDisplay.ifPresent(advancementDisplay -> {
-            @Nullable Component description = advancementDisplay.getDescription();
+        if (optionalAdvancementDisplay.isEmpty()) {
+            resetCompleteToast();
+            return;
+        }
 
-            if (description instanceof PlainTextContents plainTextContent) {
-                if (plainTextContent.text().isEmpty()) {
-                    description = null;
-                }
-            }
+        DisplayInfo advancementDisplay = optionalAdvancementDisplay.get();
+        @Nullable Component description = getDescription(advancementDisplay);
 
-            InstructionToast instructionToast = new InstructionToast(
-                    client.font,
-                    advancementDisplay.getIcon(),
-                    advancementDisplay.getTitle(),
-                    description
-            );
+        InstructionToast instructionToast = new InstructionToast(
+                client.font,
+                advancementDisplay.getIcon(),
+                advancementDisplay.getTitle(),
+                description
+        );
 
-            queueToast(id, instructionToast, delayMilliseconds);
-        });
+        queueToast(id, instructionToast, delayMilliseconds);
 
         resetCompleteToast();
+    }
+
+    @Nullable
+    private static Component getDescription(DisplayInfo display) {
+        Component description = display.getDescription();
+
+        if (!(description instanceof PlainTextContents plainTextContent)) {
+            return description;
+        }
+
+        return plainTextContent.text().isEmpty() ? null : description;
     }
 
     public void queueToast(Identifier id, HideableToast toast, int delayMilliseconds) {
@@ -262,12 +289,14 @@ public class ClientInstructionManager {
 
         Optional<AdvancementProgress> optionalParentProgress = getAdvancementProgress(parent);
 
-        if (optionalParentProgress.isPresent()) {
-            AdvancementProgress parentProgress = optionalParentProgress.get();
+        if (optionalParentProgress.isEmpty()) {
+            return isParentComplete(parent);
+        }
 
-            if (!parentProgress.isDone()) {
-                return false;
-            }
+        AdvancementProgress parentProgress = optionalParentProgress.get();
+
+        if (!parentProgress.isDone()) {
+            return false;
         }
 
         return isParentComplete(parent);

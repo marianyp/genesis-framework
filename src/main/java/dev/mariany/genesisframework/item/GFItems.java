@@ -12,15 +12,15 @@ import net.minecraft.world.item.Rarity;
 import java.util.List;
 import java.util.function.Function;
 
-public class GFItems {
+public final class GFItems {
     public static final Item AGE_BOOK = register(
             "age_book",
             AgeBookItem::new,
-            new Item.Properties()
-                    .stacksTo(1)
-                    .rarity(Rarity.EPIC)
-                    .component(GFComponentTypes.AGES, List.of())
+            new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).component(GFComponentTypes.AGES, List.of())
     );
+
+    private GFItems() {
+    }
 
     private static Item register(String name, Function<Item.Properties, Item> factory, Item.Properties properties) {
         ResourceKey<Item> itemKey = keyOf(name);

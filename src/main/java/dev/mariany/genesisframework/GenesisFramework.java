@@ -1,22 +1,29 @@
 package dev.mariany.genesisframework;
 
+import dev.mariany.genesisframework.advancement.AdvancementVisibilityHandler;
+import dev.mariany.genesisframework.advancement.DynamicAdvancements;
+import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerTriggerHandler;
 import dev.mariany.genesisframework.advancement.criterion.GFCriteria;
+import dev.mariany.genesisframework.advancement.criterion.OpenAdvancementTabTriggerHandler;
 import dev.mariany.genesisframework.age.AgeShareManager;
+import dev.mariany.genesisframework.age.AgeSyncManager;
+import dev.mariany.genesisframework.age.ServerAgeManager;
+import dev.mariany.genesisframework.age.restriction.AgeBlockRestrictions;
+import dev.mariany.genesisframework.age.restriction.AgePortalRestrictions;
+import dev.mariany.genesisframework.age.restriction.AgeRecipeRestrictions;
 import dev.mariany.genesisframework.component.GFComponentTypes;
-import dev.mariany.genesisframework.event.block.UseBlockHandler;
-import dev.mariany.genesisframework.event.server.SyncDataPackContentsHandler;
-import dev.mariany.genesisframework.event.server.advancement.BeforeAdvancementsLoadHandler;
-import dev.mariany.genesisframework.event.server.advancement.ServerAdvancementEvents;
-import dev.mariany.genesisframework.event.server.command.CommandRegistrationHandler;
 import dev.mariany.genesisframework.gamerule.GFGameRules;
+import dev.mariany.genesisframework.instruction.InstructionSyncManager;
+import dev.mariany.genesisframework.instruction.ServerInstructionManager;
 import dev.mariany.genesisframework.item.GFItems;
 import dev.mariany.genesisframework.packet.GFPackets;
+import dev.mariany.genesisframework.registry.GFDataResources;
+import dev.mariany.genesisframework.server.command.AgeCommand;
+import dev.mariany.genesisframework.server.command.GFCommands;
 import dev.mariany.genesisframework.sound.GFSoundEvents;
 import dev.mariany.genesisframework.stat.GFStats;
+import dev.mariany.genesisframework.stat.HostileKillsStatHandler;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
@@ -25,6 +32,18 @@ import org.slf4j.LoggerFactory;
 public class GenesisFramework implements ModInitializer {
     public static final String MOD_ID = "genesisframework";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    public static final DynamicAdvancements DYNAMIC_ADVANCEMENTS = new DynamicAdvancements();
+
+    private static final ServerAgeManager AGE_MANAGER = new ServerAgeManager();
+    private static final ServerInstructionManager INSTRUCTION_MANAGER = new ServerInstructionManager();
+
+    public static ServerAgeManager getServerAgeManager() {
+        return GenesisFramework.AGE_MANAGER;
+    }
+
+    public static ServerInstructionManager getServerInstructionManager() {
+        return GenesisFramework.INSTRUCTION_MANAGER;
+    }
 
     public static Identifier id(String resource) {
         return Identifier.fromNamespaceAndPath(MOD_ID, resource);
@@ -35,23 +54,33 @@ public class GenesisFramework implements ModInitializer {
             return;
         }
 
-        LOGGER.info("Registering {}", type);
+        GenesisFramework.LOGGER.info("Registering {}", type);
     }
 
     @Override
     public void onInitialize() {
+        GFDataResources.bootstrap();
         GFPackets.bootstrap();
         GFComponentTypes.bootstrap();
         GFSoundEvents.bootstrap();
         GFStats.bootstrap();
+        HostileKillsStatHandler.bootstrap();
         GFCriteria.bootstrap();
+        OpenAdvancementTabTriggerHandler.bootstrap();
+        CompleteTrialSpawnerTriggerHandler.bootstrap();
         GFItems.bootstrap();
         GFGameRules.bootstrap();
         AgeShareManager.bootstrap();
-
-        UseBlockCallback.EVENT.register(UseBlockHandler::onUseBlock);
-        ServerAdvancementEvents.BEFORE_ADVANCEMENTS_LOAD.register(BeforeAdvancementsLoadHandler::beforeAdvancementsLoad);
-        ServerLifecycleEvents.SYNC_DATA_PACK_CONTENTS.register(SyncDataPackContentsHandler::onSyncDataPackContents);
-        CommandRegistrationCallback.EVENT.register(CommandRegistrationHandler::onRegister);
+        AgeBlockRestrictions.bootstrap();
+        AgePortalRestrictions.bootstrap();
+        AgeRecipeRestrictions.bootstrap();
+        AdvancementVisibilityHandler.bootstrap();
+        AgeSyncManager.bootstrap();
+        InstructionSyncManager.bootstrap();
+        GenesisFramework.AGE_MANAGER.bootstrap();
+        GenesisFramework.INSTRUCTION_MANAGER.bootstrap();
+        GenesisFramework.DYNAMIC_ADVANCEMENTS.bootstrap();
+        AgeCommand.bootstrap();
+        GFCommands.bootstrap();
     }
 }

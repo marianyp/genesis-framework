@@ -1,6 +1,6 @@
 package dev.mariany.genesisframework.mixin;
 
-import dev.mariany.genesisframework.client.instruction.ClientInstructionManager;
+import dev.mariany.genesisframework.event.client.advancement.ClientAdvancementEvents;
 import net.minecraft.client.multiplayer.ClientAdvancements;
 import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import org.spongepowered.asm.mixin.Mixin;
@@ -11,10 +11,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ClientAdvancements.class)
 public class ClientAdvancementManagerMixin {
     /**
-     * Refresh instruction toasts during advancement update (i.e. data pack reload, advancement progress, etc.).
+     * Invokes {@link ClientAdvancementEvents#UPDATED} after the client applies an advancement update.
      */
     @Inject(method = "update", at = @At("TAIL"))
-    private void onAdvancementUpdate(ClientboundUpdateAdvancementsPacket packet, CallbackInfo ci) {
-        ClientInstructionManager.getInstance().refreshInstructionToasts();
+    private void injectUpdate(ClientboundUpdateAdvancementsPacket packet, CallbackInfo ci) {
+        ClientAdvancements advancements = (ClientAdvancements) (Object) this;
+        ClientAdvancementEvents.UPDATED.invoker().onUpdated(advancements, packet);
     }
 }

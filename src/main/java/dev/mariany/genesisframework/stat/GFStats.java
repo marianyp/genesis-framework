@@ -8,11 +8,14 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.stats.StatFormatter;
 import net.minecraft.stats.Stats;
 
-public class GFStats {
+public final class GFStats {
     public static final Holder.Reference<Identifier> HOSTILE_KILLS = register(
             "hostile_kills",
             StatFormatter.DEFAULT
     );
+
+    private GFStats() {
+    }
 
     private static Holder.Reference<Identifier> register(String name, StatFormatter formatter) {
         Identifier id = GenesisFramework.id(name);

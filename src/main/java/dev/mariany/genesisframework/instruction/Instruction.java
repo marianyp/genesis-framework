@@ -128,17 +128,24 @@ public record Instruction(
         }
 
         public InstructionEntry build(Identifier id) {
-            if (this.requirements.isEmpty()) {
-                this.requirements = AdvancementRequirements.allOf(this.criteria.keySet());
+            if (!this.requirements.isEmpty()) {
+                return this.createEntry(id);
             }
 
+            this.requirements = AdvancementRequirements.allOf(this.criteria.keySet());
+
+            return this.createEntry(id);
+        }
+
+        private InstructionEntry createEntry(Identifier id) {
             return new InstructionEntry(
-                    id, new Instruction(
-                    Optional.ofNullable(this.parent),
-                    this.criteria,
-                    this.requirements,
-                    Optional.ofNullable(this.display)
-            )
+                    id,
+                    new Instruction(
+                            Optional.ofNullable(this.parent),
+                            this.criteria,
+                            this.requirements,
+                            Optional.ofNullable(this.display)
+                    )
             );
         }
 

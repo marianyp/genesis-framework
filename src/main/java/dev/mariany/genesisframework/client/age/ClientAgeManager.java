@@ -1,7 +1,12 @@
 package dev.mariany.genesisframework.client.age;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import dev.mariany.genesisframework.item.ItemTrait;
+import dev.mariany.genesisframework.age.AgeItemRestrictions;
+import dev.mariany.genesisframework.age.AgeMetadata;
+import dev.mariany.genesisframework.age.PartialAgeItemRestrictions;
+import dev.mariany.genesisframework.client.age.requirement.AgeRequirementData;
+import dev.mariany.genesisframework.event.client.item.ClientItemEvents;
+import dev.mariany.genesisframework.item.trait.ItemTrait;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.ChatFormatting;
@@ -25,27 +30,31 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.SlotDisplay;
 import org.apache.commons.lang3.mutable.MutableBoolean;
+import org.jspecify.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Environment(EnvType.CLIENT)
 public class ClientAgeManager {
-    private static final ClientAgeManager INSTANCE = new ClientAgeManager();
+    private final Set<Runnable> itemRestrictionListeners = new HashSet<>();
 
-    private final List<Ingredient> lockedItems = new ArrayList<>();
-    private final Map<String, List<ItemTrait>> traitsByLanguageKey = new HashMap<>();
+    private AgeItemRestrictions itemRestrictions = AgeItemRestrictions.EMPTY;
+    private boolean initiatedItemRestrictions = false;
+    private Set<Item> lockedItems = Collections.emptySet();
 
-    private boolean initiatedLockedItems = false;
-
-    private ClientAgeManager() {
+    public void bootstrap() {
+        GenesisFramework.bootstrapLog("Client Age Manager");
+        ClientItemEvents.ADD_ATTRIBUTE_TOOLTIPS.register(this::addAttributeTooltips);
     }
 
-    public static ClientAgeManager getInstance() {
-        return INSTANCE;
-    }
-
-    public void addAttributeTooltips(ItemStack stack, TooltipDisplay display, Consumer<Component> consumer) {
+    private void addAttributeTooltips(
+            ItemStack stack,
+            TooltipDisplay display,
+            Player player,
+            Consumer<Component> consumer
+    ) {
         if (!display.shows(DataComponents.ATTRIBUTE_MODIFIERS)) {
             return;
         }
@@ -54,11 +63,11 @@ public class ClientAgeManager {
     }
 
     private void addAttributeTooltips(ItemStack stack, Consumer<Component> consumer) {
-        for (Map.Entry<String, List<ItemTrait>> entry : this.traitsByLanguageKey.entrySet()) {
-            String languageKey = entry.getKey();
+        for (Map.Entry<AgeMetadata, List<ItemTrait>> entry : this.itemRestrictions.traitsByAge().entrySet()) {
+            AgeMetadata ageMetadata = entry.getKey();
             List<ItemTrait> traits = entry.getValue();
             ItemAttributeModifiers itemAttributeModifiers = aggregateItemAttributeModifiers(stack, traits);
-            addAttributeTooltips(itemAttributeModifiers, languageKey, consumer);
+            addAttributeTooltips(itemAttributeModifiers, ageMetadata, consumer);
         }
     }
 
@@ -74,7 +83,7 @@ public class ClientAgeManager {
 
     private static void addAttributeTooltips(
             ItemAttributeModifiers itemAttributeModifiers,
-            String translationKey,
+            AgeMetadata ageMetadata,
             Consumer<Component> consumer
     ) {
         MutableBoolean first = new MutableBoolean(true);
@@ -88,20 +97,29 @@ public class ClientAgeManager {
                 return;
             }
 
-            if (first.isTrue()) {
-                MutableComponent ageItemModifierComponent = Component.translatable(
-                        "item.modifiers.genesisframework.age",
-                        Component.translatable(translationKey)
-                );
-
-                consumer.accept(CommonComponents.EMPTY);
-                consumer.accept(ageItemModifierComponent.withStyle(ChatFormatting.GRAY));
-
-                first.setFalse();
-            }
+            addAttributeHeader(ageMetadata, consumer, first);
 
             display.apply(consumer, getPlayer(), attribute, modifier);
         });
+    }
+
+    private static void addAttributeHeader(
+            AgeMetadata ageMetadata,
+            Consumer<Component> consumer,
+            MutableBoolean first
+    ) {
+        if (first.isFalse()) {
+            return;
+        }
+
+        MutableComponent ageItemModifierComponent = Component.translatable(
+                "item.modifiers.genesisframework.age",
+                ageMetadata.title()
+        );
+
+        consumer.accept(CommonComponents.EMPTY);
+        consumer.accept(ageItemModifierComponent.withStyle(ChatFormatting.GRAY));
+        first.setFalse();
     }
 
     private static Player getPlayer() {
@@ -109,47 +127,145 @@ public class ClientAgeManager {
     }
 
     public void reset() {
-        GenesisFramework.LOGGER.info("Resetting Client Age Manager");
+        GenesisFramework.LOGGER.info("Resetting Age Manager");
 
-        this.lockedItems.clear();
-        this.traitsByLanguageKey.clear();
-        this.initiatedLockedItems = false;
+        this.itemRestrictions = AgeItemRestrictions.EMPTY;
+        this.initiatedItemRestrictions = false;
+        this.lockedItems = Collections.emptySet();
+        this.notifyItemRestrictionListeners();
     }
 
     public boolean isUnlocked(ItemStack stack) {
-        return this.lockedItems.stream().noneMatch(ingredient -> ingredient.test(stack));
+        if (stack.isEmpty()) {
+            return true;
+        }
+
+        return !this.lockedItems.contains(stack.getItem());
     }
 
-    public void updateTraits(Map<String, List<ItemTrait>> traitsByLanguageKey) {
-        this.traitsByLanguageKey.clear();
-        this.traitsByLanguageKey.putAll(traitsByLanguageKey);
+    public List<AgeRequirementData> getAgeRequirements() {
+        return this.getGatedStacks()
+                   .stream()
+                   .map(this::getAgeRequirements)
+                   .flatMap(Optional::stream)
+                   .toList();
     }
 
-    public void updateLockedItems(Collection<Ingredient> changes) {
-        boolean initial = !this.initiatedLockedItems;
-        int oldSize = this.lockedItems.size();
+    public Optional<AgeRequirementData> getAgeRequirements(ItemStack stack) {
+        List<AgeMetadata> requiredAges = this.getRequiredAgesMetadata(stack);
 
-        List<Ingredient> difference = getDifference(this.lockedItems, changes);
+        if (requiredAges.isEmpty()) {
+            return Optional.empty();
+        }
 
-        this.lockedItems.clear();
-        this.lockedItems.addAll(changes);
-        this.initiatedLockedItems = true;
+        Set<AgeMetadata> unlockedAges = requiredAges
+                .stream()
+                .filter(ageMetadata -> this.isUnlockedForAge(ageMetadata, stack))
+                .collect(Collectors.toSet());
+
+        return Optional.of(new AgeRequirementData(stack, requiredAges, unlockedAges));
+    }
+
+    private boolean isUnlockedForAge(AgeMetadata ageMetadata, ItemStack stack) {
+        return !hasMatchingIngredient(
+                this.itemRestrictions.lockedByAge().getOrDefault(ageMetadata, List.of()),
+                stack
+        );
+    }
+
+    private List<AgeMetadata> getRequiredAgesMetadata(ItemStack stack) {
+        return this.itemRestrictions
+                .gatedByAge()
+                .entrySet()
+                .stream()
+                .filter(entry -> hasMatchingIngredient(entry.getValue(), stack))
+                .map(Map.Entry::getKey)
+                .sorted(Comparator.comparing(AgeMetadata::id))
+                .toList();
+    }
+
+    private static boolean hasMatchingIngredient(List<Ingredient> ingredients, ItemStack stack) {
+        return ingredients.stream().anyMatch(ingredient -> ingredient.test(stack));
+    }
+
+    private List<ItemStack> getGatedStacks() {
+        return this.itemRestrictions
+                .gatedByAge()
+                .values()
+                .stream()
+                .flatMap(Collection::stream)
+                .flatMap(Ingredient::items)
+                .map(Holder::value)
+                .distinct()
+                .map(Item::getDefaultInstance)
+                .toList();
+    }
+
+    public void addItemRestrictionListener(Runnable listener) {
+        this.itemRestrictionListeners.add(listener);
+    }
+
+    public void removeItemRestrictionListener(Runnable listener) {
+        this.itemRestrictionListeners.remove(listener);
+    }
+
+    public void updateItemRestrictions(AgeItemRestrictions restrictions) {
+        this.applyItemRestrictions(restrictions);
+    }
+
+    public void updateItemRestrictions(PartialAgeItemRestrictions restrictions) {
+        this.applyItemRestrictions(restrictions.toAgeItemRestrictions(this.itemRestrictions));
+    }
+
+    private void applyItemRestrictions(AgeItemRestrictions updatedItemRestrictions) {
+        boolean initial = !this.initiatedItemRestrictions;
+
+        List<Ingredient> oldLockedItems = flatten(this.itemRestrictions.lockedByAge());
+        List<Ingredient> newLockedItems = flatten(updatedItemRestrictions.lockedByAge());
+
+        int oldLockedItemsSize = oldLockedItems.size();
+        int newLockedItemsSize = newLockedItems.size();
+
+        List<Ingredient> lockedItemsDifference = getDifference(oldLockedItems, newLockedItems);
+
+        this.itemRestrictions = updatedItemRestrictions;
+        this.initiatedItemRestrictions = true;
+
+        this.rebuildLockedItemsSet();
+
+        this.notifyItemRestrictionListeners();
 
         GenesisFramework.LOGGER.info(
-                "Updated age instructions. Old Size: {} | New Size: {}",
-                oldSize,
-                this.lockedItems.size()
+                "Updated item restrictions. Old Locked Items Count: {} | New Locked Items Count: {}",
+                oldLockedItemsSize,
+                newLockedItemsSize
         );
 
-        if (!initial) {
-            afterUpdateItemUnlocks(difference);
+        if (initial) {
+            return;
         }
+
+        this.afterUpdateItemUnlocks(lockedItemsDifference);
     }
 
-    private static List<Ingredient> getDifference(
-            Collection<Ingredient> before,
-            Collection<Ingredient> after
-    ) {
+    private void rebuildLockedItemsSet() {
+        this.lockedItems = this.itemRestrictions
+                .lockedByAge().values().stream()
+                .flatMap(Collection::stream)
+                .flatMap(Ingredient::items)
+                .map(Holder::value)
+                .collect(Collectors.toSet());
+    }
+
+    private static List<Ingredient> flatten(Map<AgeMetadata, List<Ingredient>> ingredientsByAge) {
+        return ingredientsByAge.values().stream().flatMap(Collection::stream).toList();
+    }
+
+    private void notifyItemRestrictionListeners() {
+        List.copyOf(this.itemRestrictionListeners).forEach(Runnable::run);
+    }
+
+    private static List<Ingredient> getDifference(Collection<Ingredient> before, Collection<Ingredient> after) {
         Set<Ingredient> ingredients = new HashSet<>(after);
 
         return before.stream()
@@ -179,6 +295,7 @@ public class ClientAgeManager {
                 return SlotDisplay.Empty.INSTANCE;
             }
 
+            @Nullable
             @Override
             public Type<? extends RecipeDisplay> type() {
                 return null;

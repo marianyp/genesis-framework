@@ -61,9 +61,11 @@ public class InstructionsCompleteToast implements HideableToast {
 
     @Override
     public void update(ToastManager manager, long time) {
-        if (time >= this.displayDuration) {
-            this.visibility = Toast.Visibility.HIDE;
+        if (time < this.displayDuration) {
+            return;
         }
+
+        this.visibility = Toast.Visibility.HIDE;
     }
 
     @Override

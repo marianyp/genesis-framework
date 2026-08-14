@@ -2,9 +2,8 @@ package dev.mariany.genesisframework.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import dev.mariany.genesisframework.age.ServerAgeManager;
+import dev.mariany.genesisframework.event.server.recipe.ServerRecipeEvents;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeCache;
@@ -18,7 +17,7 @@ import java.util.Optional;
 @Mixin(CrafterBlock.class)
 public class CrafterBlockMixin {
     /**
-     * Prevent Crafter from crafting an item that requires an age.
+     * Queries {@link ServerRecipeEvents#SHOULD_PREVENT_CRAFTER_CRAFTING} before the Crafter crafts a recipe.
      */
     @WrapOperation(
             method = "getPotentialResults",
@@ -27,23 +26,26 @@ public class CrafterBlockMixin {
                     target = "Lnet/minecraft/world/item/crafting/RecipeCache;get(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/crafting/CraftingInput;)Ljava/util/Optional;"
             )
     )
-    private static Optional<RecipeHolder<CraftingRecipe>> wrapGetCraftingRecipe(
+    private static Optional<RecipeHolder<CraftingRecipe>> wrapGet(
             RecipeCache recipeCache,
             ServerLevel level,
             CraftingInput input,
             Operation<Optional<RecipeHolder<CraftingRecipe>>> original
     ) {
-        Optional<RecipeHolder<CraftingRecipe>> optionalRecipe = original.call(recipeCache, level, input);
+        RecipeHolder<CraftingRecipe> recipeHolder = original.call(recipeCache, level, input).orElse(null);
 
-        if (optionalRecipe.isPresent()) {
-            RecipeHolder<CraftingRecipe> recipe = optionalRecipe.get();
-            ItemStack stack = recipe.value().assemble(input);
-
-            if (ServerAgeManager.getInstance().isAgeGuarded(stack.getItem())) {
-                return Optional.empty();
-            }
+        if (recipeHolder == null) {
+            return Optional.empty();
         }
 
-        return original.call(recipeCache, level, input);
+        boolean preventCrafterCrafting = ServerRecipeEvents.SHOULD_PREVENT_CRAFTER_CRAFTING
+                .invoker()
+                .shouldPreventCrafterCrafting(input, recipeHolder);
+
+        if (preventCrafterCrafting) {
+            return Optional.empty();
+        }
+
+        return Optional.of(recipeHolder);
     }
 }
