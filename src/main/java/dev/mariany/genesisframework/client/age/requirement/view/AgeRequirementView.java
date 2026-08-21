@@ -1,7 +1,7 @@
 package dev.mariany.genesisframework.client.age.requirement.view;
 
 import dev.mariany.genesisframework.GenesisFramework;
-import dev.mariany.genesisframework.age.AgeMetadata;
+import dev.mariany.genesisframework.age.AgeFormatter;
 import dev.mariany.genesisframework.client.age.requirement.AgeRequirementData;
 import dev.mariany.genesisframework.item.GFItems;
 import net.fabricmc.api.EnvType;
@@ -123,8 +123,8 @@ public class AgeRequirementView {
         return Component.translatable("gui.genesisframework.age_requirements.description");
     }
 
-    public Component ageName(AgeMetadata ageMetadata) {
-        return ageMetadata.component();
+    public Component ageName(Identifier ageId) {
+        return AgeFormatter.format(ageId);
     }
 
     public void draw(
@@ -184,9 +184,9 @@ public class AgeRequirementView {
             int availableHeight
     ) {
         List<TextPanel.Row> rows = data
-                .requiredAges()
+                .requiredAgeIds()
                 .stream()
-                .map(ageMetadata -> this.createRow(data, ageMetadata))
+                .map(ageId -> this.createRow(data, ageId))
                 .toList();
 
         int availablePanelWidth = availableWidth - PANEL_MARGIN * 2;
@@ -198,10 +198,10 @@ public class AgeRequirementView {
         return this.textPanel.layout(rows, context, availablePanelWidth, availablePanelHeight);
     }
 
-    private TextPanel.Row createRow(AgeRequirementData data, AgeMetadata ageMetadata) {
-        boolean unlocked = data.isUnlocked(ageMetadata);
+    private TextPanel.Row createRow(AgeRequirementData data, Identifier ageId) {
+        boolean unlocked = data.isUnlocked(ageId);
         Identifier iconSprite = unlocked ? UNLOCKED_ICON_SPRITE : LOCKED_ICON_SPRITE;
-        return new TextPanel.Row(iconSprite, this.ageName(ageMetadata));
+        return new TextPanel.Row(iconSprite, this.ageName(ageId));
     }
 
     @Override

@@ -1,6 +1,6 @@
 package dev.mariany.genesisframework.compat;
 
-import dev.mariany.genesisframework.age.AgeMetadata;
+import dev.mariany.genesisframework.age.AgeFormatter;
 import dev.mariany.genesisframework.client.GenesisFrameworkClient;
 import dev.mariany.genesisframework.client.age.ClientAgeManager;
 import dev.mariany.genesisframework.client.age.requirement.AgeRequirementData;
@@ -8,11 +8,11 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.CommonColors;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,34 +33,34 @@ public final class AgeRecipeTransferMessages {
             return Optional.empty();
         }
 
-        List<AgeMetadata> missingAges = lockedOutputs
+        List<Identifier> missingAgeIds = lockedOutputs
                 .stream()
                 .map(clientAgeManager::getAgeRequirements)
                 .flatMap(Optional::stream)
-                .flatMap(data -> missingAges(data).stream())
+                .flatMap(data -> missingAgeIds(data).stream())
                 .distinct()
-                .sorted(Comparator.comparing(AgeMetadata::id))
+                .sorted()
                 .toList();
 
         MutableComponent component;
 
-        if (missingAges.size() > 1) {
+        if (missingAgeIds.size() > 1) {
             component = Component.translatable(
                     "gui.genesisframework.recipe_transfer.age_locked.multiple",
-                    missingAges.size()
+                    missingAgeIds.size()
             );
         } else {
             component = Component.translatable(
                     "gui.genesisframework.recipe_transfer.age_locked",
-                    missingAges.getFirst().component()
+                    AgeFormatter.format(missingAgeIds.getFirst())
             );
         }
 
         return Optional.of(component.withColor(CommonColors.SOFT_RED));
     }
 
-    private static List<AgeMetadata> missingAges(AgeRequirementData data) {
-        return data.requiredAges()
+    private static List<Identifier> missingAgeIds(AgeRequirementData data) {
+        return data.requiredAgeIds()
                    .stream()
                    .filter(age -> !data.isUnlocked(age))
                    .toList();

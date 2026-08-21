@@ -35,11 +35,11 @@ public class REIAgeRequirementDisplayGenerator
                 .map(this::createDisplay)
                 .toList();
 
-        if (!builder.getRecipesFor().isEmpty()) {
-            displays = filterDisplaysMatchingRecipeOutputs(builder, displays);
-        }
+        List<REIAgeRequirementDisplay> filteredDisplays = builder.getRecipesFor().isEmpty() ?
+                displays :
+                filterDisplaysMatchingRecipeOutputs(builder, displays);
 
-        return displays.isEmpty() ? Optional.empty() : Optional.of(displays);
+        return filteredDisplays.isEmpty() ? Optional.empty() : Optional.of(filteredDisplays);
     }
 
     private static List<REIAgeRequirementDisplay> filterDisplaysMatchingRecipeOutputs(

@@ -3,7 +3,8 @@ package dev.mariany.genesisframework;
 import dev.mariany.genesisframework.advancement.AdvancementVisibilityHandler;
 import dev.mariany.genesisframework.advancement.DynamicAdvancements;
 import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerTriggerHandler;
-import dev.mariany.genesisframework.advancement.criterion.GFCriteria;
+import dev.mariany.genesisframework.advancement.criterion.GFCriteriaTriggers;
+import dev.mariany.genesisframework.advancement.criterion.ItemBrokenTriggerHandler;
 import dev.mariany.genesisframework.advancement.criterion.OpenAdvancementTabTriggerHandler;
 import dev.mariany.genesisframework.age.AgeShareManager;
 import dev.mariany.genesisframework.age.AgeSyncManager;
@@ -32,10 +33,11 @@ import org.slf4j.LoggerFactory;
 public class GenesisFramework implements ModInitializer {
     public static final String MOD_ID = "genesisframework";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-    public static final DynamicAdvancements DYNAMIC_ADVANCEMENTS = new DynamicAdvancements();
 
     private static final ServerAgeManager AGE_MANAGER = new ServerAgeManager();
     private static final ServerInstructionManager INSTRUCTION_MANAGER = new ServerInstructionManager();
+
+    public static final DynamicAdvancements DYNAMIC_ADVANCEMENTS = new DynamicAdvancements();
 
     public static ServerAgeManager getServerAgeManager() {
         return GenesisFramework.AGE_MANAGER;
@@ -65,9 +67,10 @@ public class GenesisFramework implements ModInitializer {
         GFSoundEvents.bootstrap();
         GFStats.bootstrap();
         HostileKillsStatHandler.bootstrap();
-        GFCriteria.bootstrap();
-        OpenAdvancementTabTriggerHandler.bootstrap();
+        GFCriteriaTriggers.bootstrap();
         CompleteTrialSpawnerTriggerHandler.bootstrap();
+        ItemBrokenTriggerHandler.bootstrap();
+        OpenAdvancementTabTriggerHandler.bootstrap();
         GFItems.bootstrap();
         GFGameRules.bootstrap();
         AgeShareManager.bootstrap();

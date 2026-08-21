@@ -2,6 +2,7 @@ package dev.mariany.genesisframework.packet.clientbound;
 
 import dev.mariany.genesisframework.client.GenesisFrameworkClient;
 import dev.mariany.genesisframework.GenesisFramework;
+import dev.mariany.genesisframework.age.AgeFormatter;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.ToastManager;
@@ -17,12 +18,12 @@ public final class ClientBoundPackets {
 
         ClientPlayNetworking.registerGlobalReceiver(
                 AgeItemRestrictionsPayload.ID,
-                ClientBoundPackets::handleSyncAgeItemRestrictions
+                ClientBoundPackets::handleAgeItemRestrictions
         );
 
         ClientPlayNetworking.registerGlobalReceiver(
                 PartialAgeItemRestrictionsPayload.ID,
-                ClientBoundPackets::handleUpdateAgeItemRestrictions
+                ClientBoundPackets::handlePartialAgeItemRestrictions
         );
 
         ClientPlayNetworking.registerGlobalReceiver(
@@ -36,7 +37,7 @@ public final class ClientBoundPackets {
         );
     }
 
-    private static void handleSyncAgeItemRestrictions(
+    private static void handleAgeItemRestrictions(
             AgeItemRestrictionsPayload payload,
             ClientPlayNetworking.Context context
     ) {
@@ -45,7 +46,7 @@ public final class ClientBoundPackets {
         );
     }
 
-    private static void handleUpdateAgeItemRestrictions(
+    private static void handlePartialAgeItemRestrictions(
             PartialAgeItemRestrictionsPayload payload,
             ClientPlayNetworking.Context context
     ) {
@@ -85,7 +86,7 @@ public final class ClientBoundPackets {
                         icons,
                         Component.translatable(
                                 "tutorial.genesisframework.age_locked.named",
-                                payload.ageMetadata().component(),
+                                AgeFormatter.format(payload.ageId()),
                                 Component.translatable(payload.restrictedTranslation())
                         ),
                         null,

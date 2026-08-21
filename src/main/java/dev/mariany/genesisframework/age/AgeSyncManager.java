@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.crafting.Ingredient;
 
@@ -63,7 +64,6 @@ public final class AgeSyncManager {
         }
 
         AgeItemRestrictions ageItemRestrictions = getAgeItemRestrictions(serverPlayer);
-
         ServerPlayNetworking.send(serverPlayer, new AgeItemRestrictionsPayload(ageItemRestrictions));
 
         return true;
@@ -76,11 +76,11 @@ public final class AgeSyncManager {
         Map<AgeEntry, List<Ingredient>> lockedByAge = ageManager.getLockedItemsByAge(serverPlayer);
         Map<AgeEntry, List<ItemTrait>> traitsByAge = ageManager.getActiveTraits(serverPlayer);
 
-        Map<AgeMetadata, List<Ingredient>> gatedByMetadata = getValuesByMetadata(gatedByAge);
-        Map<AgeMetadata, List<Ingredient>> lockedByMetadata = getValuesByMetadata(lockedByAge);
-        Map<AgeMetadata, List<ItemTrait>> traitsByMetadata = getValuesByMetadata(traitsByAge);
+        Map<Identifier, List<Ingredient>> gatedById = getValuesById(gatedByAge);
+        Map<Identifier, List<Ingredient>> lockedById = getValuesById(lockedByAge);
+        Map<Identifier, List<ItemTrait>> traitsById = getValuesById(traitsByAge);
 
-        return new AgeItemRestrictions(gatedByMetadata, lockedByMetadata, traitsByMetadata);
+        return new AgeItemRestrictions(gatedById, lockedById, traitsById);
     }
 
     private static void syncPartial(ServerPlayer serverPlayer) {
@@ -106,26 +106,22 @@ public final class AgeSyncManager {
     private static PartialAgeItemRestrictions getPartialAgeItemRestrictions(ServerPlayer serverPlayer) {
         ServerAgeManager ageManager = GenesisFramework.getServerAgeManager();
 
-        Map<AgeMetadata, List<Ingredient>> lockedByAgeName = getValuesByMetadata(
+        Map<Identifier, List<Ingredient>> lockedByAgeId = getValuesById(
                 ageManager.getLockedItemsByAge(serverPlayer)
         );
 
-        Map<AgeMetadata, List<ItemTrait>> traitsByAgeName = getValuesByMetadata(
+        Map<Identifier, List<ItemTrait>> traitsByAgeId = getValuesById(
                 ageManager.getActiveTraits(serverPlayer)
         );
 
-        return new PartialAgeItemRestrictions(null, lockedByAgeName, traitsByAgeName);
+        return new PartialAgeItemRestrictions(null, lockedByAgeId, traitsByAgeId);
     }
 
-    private static <T> Map<AgeMetadata, List<T>> getValuesByMetadata(Map<AgeEntry, List<T>> valuesByAge) {
+    private static <T> Map<Identifier, List<T>> getValuesById(Map<AgeEntry, List<T>> valuesByAge) {
         return valuesByAge
                 .entrySet()
                 .stream()
-                .collect(Collectors.toMap(AgeSyncManager::getAgeMetaData, Map.Entry::getValue));
-    }
-
-    private static AgeMetadata getAgeMetaData(Map.Entry<AgeEntry, ?> entry) {
-        return entry.getKey().getMetaData();
+                .collect(Collectors.toMap(entry -> entry.getKey().getId(), Map.Entry::getValue));
     }
 
     private static boolean isMissingConnection(ServerPlayer serverPlayer) {

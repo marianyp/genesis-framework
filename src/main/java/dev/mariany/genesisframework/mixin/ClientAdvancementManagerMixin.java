@@ -15,7 +15,6 @@ public class ClientAdvancementManagerMixin {
      */
     @Inject(method = "update", at = @At("TAIL"))
     private void injectUpdate(ClientboundUpdateAdvancementsPacket packet, CallbackInfo ci) {
-        ClientAdvancements advancements = (ClientAdvancements) (Object) this;
-        ClientAdvancementEvents.UPDATED.invoker().onUpdated(advancements, packet);
+        ClientAdvancementEvents.UPDATED.invoker().onUpdated(packet.shouldReset(), packet.getProgress());
     }
 }

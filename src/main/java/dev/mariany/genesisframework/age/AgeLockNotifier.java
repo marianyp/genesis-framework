@@ -10,7 +10,7 @@ public final class AgeLockNotifier {
     }
 
     public static void notifyAgeLocked(String restrictedTranslation, AgeEntry ageEntry, ServerPlayer serverPlayer) {
-        notifyAgeLocked(restrictedTranslation, ageEntry.getMetaData(), false, serverPlayer);
+        notifyAgeLocked(restrictedTranslation, ageEntry, false, serverPlayer);
     }
 
     public static void notifyAgeLockedClick(ItemLike item, AgeEntry ageEntry, ServerPlayer serverPlayer) {
@@ -22,18 +22,18 @@ public final class AgeLockNotifier {
             AgeEntry ageEntry,
             ServerPlayer serverPlayer
     ) {
-        notifyAgeLocked(restrictedTranslation, ageEntry.getMetaData(), true, serverPlayer);
+        notifyAgeLocked(restrictedTranslation, ageEntry, true, serverPlayer);
     }
 
     private static void notifyAgeLocked(
             String restrictedTranslation,
-            AgeMetadata ageMetadata,
+            AgeEntry ageEntry,
             boolean clickInteraction,
             ServerPlayer serverPlayer
     ) {
         ServerPlayNetworking.send(
                 serverPlayer,
-                new NotifyAgeLockedPayload(restrictedTranslation, ageMetadata, clickInteraction)
+                new NotifyAgeLockedPayload(restrictedTranslation, ageEntry.getId(), clickInteraction)
         );
     }
 }

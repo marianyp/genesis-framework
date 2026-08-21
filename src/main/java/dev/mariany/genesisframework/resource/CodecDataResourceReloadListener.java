@@ -44,9 +44,9 @@ public abstract class CodecDataResourceReloadListener<T>
     @Override
     protected final Map<Identifier, T> prepare(PreparableReloadListener.SharedState state) {
         RegistryOps<JsonElement> ops = this.registries.createSerializationContext(JsonOps.INSTANCE);
-        Map<Identifier, T> result = new HashMap<>();
-
         Map<Identifier, Resource> resources = this.lister.listMatchingResources(state.resourceManager());
+
+        Map<Identifier, T> result = new HashMap<>();
 
         for (Entry<Identifier, Resource> entry : resources.entrySet()) {
             Identifier location = entry.getKey();

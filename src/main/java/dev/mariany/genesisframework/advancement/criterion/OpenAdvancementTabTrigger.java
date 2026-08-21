@@ -47,7 +47,7 @@ public class OpenAdvancementTabTrigger extends SimpleCriterionTrigger<OpenAdvanc
                 @Nullable ContextAwarePredicate playerPredicate,
                 @Nullable Identifier tab
         ) {
-            return GFCriteria.OPEN_ADVANCEMENT_TAB.createCriterion(
+            return GFCriteriaTriggers.OPEN_ADVANCEMENT_TAB.createCriterion(
                     new TriggerInstance(
                             Optional.ofNullable(playerPredicate),
                             Optional.ofNullable(tab)

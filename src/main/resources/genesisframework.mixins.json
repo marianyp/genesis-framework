@@ -5,6 +5,7 @@
   "mixins": [
     "AdvancementDisplaysMixin",
     "CrafterBlockMixin",
+    "ItemStackMixin",
     "LivingEntityMixin",
     "PlayerAdvancementsMixin",
     "PortalProcessorMixin",
@@ -27,8 +28,8 @@
     "AdvancementsScreenMixin",
     "AnimatedResultButtonMixin",
     "ClientAdvancementManagerMixin",
-    "ClientRecipeDisplayEntryMixin",
     "ClientItemStackMixin",
+    "ClientRecipeDisplayEntryMixin",
     "GuiMixin",
     "RecipeBookWidgetMixin",
     "RecipeToastMixin",

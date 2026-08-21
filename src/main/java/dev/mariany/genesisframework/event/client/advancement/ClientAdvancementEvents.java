@@ -6,9 +6,10 @@ import net.fabricmc.fabric.api.event.Event;
 import net.fabricmc.fabric.api.event.EventFactory;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementNode;
+import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.client.gui.screens.advancements.AdvancementTab;
 import net.minecraft.client.multiplayer.ClientAdvancements;
-import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
+import net.minecraft.resources.Identifier;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -20,9 +21,9 @@ public final class ClientAdvancementEvents {
 
     public static final Event<Updated> UPDATED = EventFactory.createArrayBacked(
             Updated.class,
-            callbacks -> (advancements, packet) -> {
+            callbacks -> (shouldReset, progress) -> {
                 for (Updated callback : callbacks) {
-                    callback.onUpdated(advancements, packet);
+                    callback.onUpdated(shouldReset, progress);
                 }
             }
     );
@@ -50,7 +51,7 @@ public final class ClientAdvancementEvents {
     );
 
     public interface Updated {
-        void onUpdated(ClientAdvancements advancements, ClientboundUpdateAdvancementsPacket packet);
+        void onUpdated(boolean shouldReset, Map<Identifier, AdvancementProgress> progress);
     }
 
     public interface ScreenInitialized {

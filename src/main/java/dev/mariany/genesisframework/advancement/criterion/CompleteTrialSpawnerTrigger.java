@@ -42,7 +42,7 @@ public class CompleteTrialSpawnerTrigger extends SimpleCriterionTrigger<Complete
                 @Nullable ContextAwarePredicate playerPredicate,
                 boolean ominous
         ) {
-            return GFCriteria.COMPLETE_TRIAL_SPAWNER_ADVANCEMENT.createCriterion(
+            return GFCriteriaTriggers.COMPLETE_TRIAL_SPAWNER_ADVANCEMENT.createCriterion(
                     new TriggerInstance(Optional.ofNullable(playerPredicate), ominous)
             );
         }

@@ -3,6 +3,7 @@ package dev.mariany.genesisframework.age;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerTrigger;
+import dev.mariany.genesisframework.advancement.criterion.ItemBrokenTrigger;
 import dev.mariany.genesisframework.stat.GFStats;
 import net.minecraft.advancements.AdvancementRequirements;
 import net.minecraft.advancements.predicates.ContextAwarePredicate;
@@ -15,7 +16,7 @@ import net.minecraft.advancements.predicates.entity.PlayerPredicate;
 import net.minecraft.advancements.triggers.*;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -103,6 +104,14 @@ public record Age(
             return new Builder();
         }
 
+        public Builder itemUnlock(HolderSet<Item> tag) {
+            return this.itemUnlock(Ingredient.of(tag));
+        }
+
+        public Builder itemUnlock(ItemLike item) {
+            return this.itemUnlock(Ingredient.of(item));
+        }
+
         public Builder itemUnlock(Ingredient ingredient) {
             this.items.add(ingredient);
             return this;
@@ -149,14 +158,14 @@ public record Age(
         }
 
         public Builder requireAge(Identifier id) {
-            Optional<String> categoryOpt = AgeEntry.getCategory(id);
-            Optional<String> subpathOpt = AgeEntry.getSubPath(id);
+            Optional<String> optionalCategory = AgeEntry.getCategory(id);
+            Optional<String> optionalSubPath = AgeEntry.getSubPath(id);
 
-            String name = subpathOpt
+            String name = optionalSubPath
                     .map(
-                            subpath -> categoryOpt
-                                    .map(category -> "has_" + subpath + "_" + category + "_age")
-                                    .orElse("has_" + subpath + "_age")
+                            subPath -> optionalCategory
+                                    .map(category -> "has_" + subPath + "_" + category + "_age")
+                                    .orElse("has_" + subPath + "_age")
                     )
                     .orElse("has_age");
 
@@ -176,7 +185,7 @@ public record Age(
 
             Criterion<PlayerTrigger.TriggerInstance> criterion = CriteriaTriggers.TICK.createCriterion(triggerInstance);
 
-            return criterion(name, criterion);
+            return this.criterion(name, criterion);
         }
 
         public Builder requireKill(
@@ -185,15 +194,12 @@ public record Age(
                 int atLeast
         ) {
             Holder.Reference<EntityType<?>> entityTypeHolder = entityType.builtInRegistryHolder();
+
             MinMaxBounds.Ints previousKillCount = MinMaxBounds.Ints.atLeast(atLeast - 1);
 
             PlayerPredicate playerPredicate = PlayerPredicate.Builder
                     .player()
-                    .addStat(
-                            Stats.ENTITY_KILLED,
-                            entityTypeHolder,
-                            previousKillCount
-                    )
+                    .addStat(Stats.ENTITY_KILLED, entityTypeHolder, previousKillCount)
                     .build();
 
             EntityPredicate.Builder sourceEntityPredicate = EntityPredicate.Builder
@@ -216,11 +222,11 @@ public record Age(
             String entityTypePath = EntityType.getKey(entityType).getPath();
             String name = "killed_" + atLeast + entityTypePath;
 
-            return criterion(name, trigger);
+            return this.criterion(name, trigger);
         }
 
         public Builder requireKillHostiles(int atLeast) {
-            return criterion(
+            return this.criterion(
                     "killed_" + atLeast + "_hostiles",
                     CriteriaTriggers.TICK.createCriterion(
                             PlayerTrigger.TriggerInstance.located(
@@ -263,7 +269,7 @@ public record Age(
 
                 String name = "trial_completed_with_" + slot.getSerializedName();
 
-                criterion(
+                this.criterion(
                         name,
                         CompleteTrialSpawnerTrigger.TriggerInstance.create(
                                 EntityPredicate.wrap(
@@ -281,27 +287,22 @@ public record Age(
             return this;
         }
 
-        public Builder requireTimePlayed(int ticks) {
+        public Builder requireLevel(MinMaxBounds.Ints level) {
             ContextAwarePredicate predicate = EntityPredicate.wrap(
-                    EntityPredicate.Builder.entity().player(
-                            PlayerPredicate.Builder.player().addStat(
-                                    Stats.CUSTOM,
-                                    BuiltInRegistries.CUSTOM_STAT.getOrThrow(
-                                            ResourceKey.create(Registries.CUSTOM_STAT, Stats.PLAY_TIME)
-                                    ),
-                                    MinMaxBounds.Ints.atLeast(ticks)
-                            ).build()
-                    ).build()
+                    EntityPredicate.Builder
+                            .entity()
+                            .player(PlayerPredicate.Builder.player().setLevel(level).build())
+                            .build()
             );
 
-            return criterion(
+            return this.criterion(
                     "time_played",
                     CriteriaTriggers.TICK.createCriterion(new PlayerTrigger.TriggerInstance(Optional.of(predicate)))
             );
         }
 
         public Age.Builder requireCraft(ItemLike item) {
-            return requireCraft(item, MinMaxBounds.Ints.atLeast(1));
+            return this.requireCraft(item, MinMaxBounds.Ints.atLeast(1));
         }
 
         public Age.Builder requireCraft(ItemLike item, MinMaxBounds.Ints range) {
@@ -316,11 +317,30 @@ public record Age(
 
             PlayerTrigger.TriggerInstance triggerInstance = new PlayerTrigger.TriggerInstance(Optional.of(predicate));
 
-            return criterion(id(item, "crafted"), CriteriaTriggers.TICK.createCriterion(triggerInstance));
+            return this.criterion(id(item, "crafted"), CriteriaTriggers.TICK.createCriterion(triggerInstance));
         }
 
         public Age.Builder requireItem(ItemLike item) {
-            return criterion(id(item, "obtained"), InventoryChangeTrigger.TriggerInstance.hasItems(item));
+            return this.criterion(id(item, "obtained"), InventoryChangeTrigger.TriggerInstance.hasItems(item));
+        }
+
+        public Age.Builder requireBreak(HolderSet<Item> tag) {
+            return this.requireBreak(null, Ingredient.of(tag));
+        }
+
+        public Age.Builder requireBreak(String name, HolderSet<Item> tag) {
+            return this.requireBreak(name, Ingredient.of(tag));
+        }
+
+        public Age.Builder requireBreak(Ingredient ingredient) {
+            return this.requireBreak(null, ingredient);
+        }
+
+        public Age.Builder requireBreak(@Nullable String name, Ingredient ingredient) {
+            return this.criterion(
+                    name == null ? "item_broken" : name + "_broken",
+                    ItemBrokenTrigger.Conditions.create(ingredient)
+            );
         }
 
         private static String id(ItemLike item, String affix) {
@@ -336,12 +356,12 @@ public record Age(
             return this;
         }
 
-        public Builder display(ItemLike icon, Component title) {
-            return this.display(icon, title, Component.empty());
+        public Builder display(ItemLike icon) {
+            return this.display(icon, Component.empty());
         }
 
-        public Builder display(ItemLike icon, Component title, Component description) {
-            this.display = new AgeDisplay(new ItemStackTemplate(icon.asItem()), title, description);
+        public Builder display(ItemLike icon, Component description) {
+            this.display = new AgeDisplay(new ItemStackTemplate(icon.asItem()), description);
             return this;
         }
 

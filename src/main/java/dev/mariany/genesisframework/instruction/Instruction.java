@@ -3,19 +3,15 @@ package dev.mariany.genesisframework.instruction;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.advancements.AdvancementRequirements;
-import net.minecraft.advancements.predicates.ContextAwarePredicate;
-import net.minecraft.advancements.predicates.MinMaxBounds;
-import net.minecraft.advancements.predicates.entity.EntityPredicate;
-import net.minecraft.advancements.predicates.entity.PlayerPredicate;
-import net.minecraft.advancements.triggers.CriteriaTriggers;
+import net.minecraft.advancements.predicates.ItemPredicate;
 import net.minecraft.advancements.triggers.Criterion;
 import net.minecraft.advancements.triggers.InventoryChangeTrigger;
-import net.minecraft.advancements.triggers.PlayerTrigger;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.stats.Stats;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.level.ItemLike;
@@ -96,27 +92,15 @@ public record Instruction(
             return this;
         }
 
-        public Builder requireCraft(ItemLike item) {
-            return requireCraft(item, MinMaxBounds.Ints.atLeast(1));
-        }
-
-        public Builder requireCraft(ItemLike item, MinMaxBounds.Ints range) {
-            PlayerPredicate playerPredicate = PlayerPredicate.Builder
-                    .player()
-                    .addStat(Stats.ITEM_CRAFTED, item.asItem().builtInRegistryHolder(), range)
-                    .build();
-
-            EntityPredicate entityPredicate = EntityPredicate.Builder.entity().player(playerPredicate).build();
-
-            ContextAwarePredicate predicate = EntityPredicate.wrap(entityPredicate);
-
-            PlayerTrigger.TriggerInstance triggerInstance = new PlayerTrigger.TriggerInstance(Optional.of(predicate));
-
-            return criterion(id(item, "crafted"), CriteriaTriggers.TICK.createCriterion(triggerInstance));
-        }
-
         public Builder requireItem(ItemLike item) {
             return criterion(id(item, "obtained"), InventoryChangeTrigger.TriggerInstance.hasItems(item));
+        }
+
+        public Builder requireItem(HolderLookup.RegistryLookup<Item> itemLookup, TagKey<Item> tag) {
+            return criterion(
+                    id(tag, "obtained"),
+                    InventoryChangeTrigger.TriggerInstance.hasItems(ItemPredicate.Builder.item().of(itemLookup, tag))
+            );
         }
 
         private static String id(ItemLike item, String affix) {
@@ -125,6 +109,10 @@ public record Instruction(
             Identifier identifier = key.identifier();
             String name = identifier.getPath();
             return name + "_" + affix;
+        }
+
+        private static String id(TagKey<Item> tag, String affix) {
+            return tag.location().getPath() + "_" + affix;
         }
 
         public InstructionEntry build(Identifier id) {

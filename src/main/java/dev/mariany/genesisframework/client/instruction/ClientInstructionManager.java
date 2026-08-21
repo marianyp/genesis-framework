@@ -19,10 +19,8 @@ import net.minecraft.client.multiplayer.ClientAdvancements;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.PlainTextContents;
-import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
@@ -33,6 +31,7 @@ public class ClientInstructionManager {
     private static final int DEFAULT_QUEUE_DELAY_MILLISECONDS = 1000;
 
     private final Set<Identifier> instructionAdvancements = new HashSet<>();
+    private final Set<Identifier> advancementsAwaitingSync = new HashSet<>();
     private final Object2ObjectOpenHashMap<Identifier, HideableToast> toasts = new Object2ObjectOpenHashMap<>();
     private final Object2ObjectOpenHashMap<Identifier, HideableToast> waitingToasts = new Object2ObjectOpenHashMap<>();
 
@@ -45,10 +44,19 @@ public class ClientInstructionManager {
         ClientAdvancementEvents.UPDATED.register(this::onAdvancementsUpdated);
     }
 
-    private void onAdvancementsUpdated(
-            ClientAdvancements advancements,
-            ClientboundUpdateAdvancementsPacket packet
-    ) {
+    private void onAdvancementsUpdated(boolean shouldReset, Map<Identifier, AdvancementProgress> progress) {
+        if (shouldReset) {
+            this.advancementsAwaitingSync.clear();
+        } else if (this.instructionAdvancements.isEmpty()) {
+            progress.forEach((id, advancementProgress) -> {
+                if (!advancementProgress.isDone()) {
+                    return;
+                }
+
+                this.advancementsAwaitingSync.add(id);
+            });
+        }
+
         this.refreshInstructionToasts();
     }
 
@@ -58,6 +66,7 @@ public class ClientInstructionManager {
         this.complete = true;
         this.queueTargetMilliseconds = -1;
         this.instructionAdvancements.clear();
+        this.advancementsAwaitingSync.clear();
         this.waitingToasts.clear();
         this.toasts.forEach((_, toast) -> toast.hide());
         this.toasts.clear();
@@ -107,12 +116,20 @@ public class ClientInstructionManager {
 
         int oldSize = this.instructionAdvancements.size();
 
+        boolean awaitingSync = changes
+                .stream()
+                .anyMatch(this.advancementsAwaitingSync::contains);
+
         this.reset();
 
         this.instructionAdvancements.addAll(changes);
 
+        if (awaitingSync) {
+            this.complete = false;
+        }
+
         GenesisFramework.LOGGER.info(
-                "Loaded instructions. Old Size: {} | New Size: {}",
+                "Loaded instructions. Old size: {} | New size: {}",
                 oldSize,
                 this.instructionAdvancements.size()
         );
@@ -143,6 +160,7 @@ public class ClientInstructionManager {
         }
 
         toast.hide();
+
         this.toasts.remove(INSTRUCTIONS_COMPLETE_TOAST_ID);
         this.waitingToasts.remove(INSTRUCTIONS_COMPLETE_TOAST_ID);
     }
@@ -179,7 +197,7 @@ public class ClientInstructionManager {
                 continue;
             }
 
-            addToast(instructionAdvancement, delayMilliseconds);
+            this.addToast(instructionAdvancement, delayMilliseconds);
         }
 
         if (!this.toasts.isEmpty() || !this.waitingToasts.isEmpty()) {
@@ -192,7 +210,7 @@ public class ClientInstructionManager {
 
         this.complete = true;
 
-        queueToast(INSTRUCTIONS_COMPLETE_TOAST_ID, new InstructionsCompleteToast(), 0);
+        this.queueToast(INSTRUCTIONS_COMPLETE_TOAST_ID, new InstructionsCompleteToast(), 0);
     }
 
     private List<AdvancementNode> getInstructionAdvancements() {
@@ -202,7 +220,7 @@ public class ClientInstructionManager {
             return Collections.emptyList();
         }
 
-        return getInstructionAdvancements(localPlayer);
+        return this.getInstructionAdvancements(localPlayer);
     }
 
     private List<AdvancementNode> getInstructionAdvancements(LocalPlayer localPlayer) {
@@ -216,11 +234,11 @@ public class ClientInstructionManager {
         return this.instructionAdvancements.contains(placedAdvancement.holder().id());
     }
 
-    private Optional<AdvancementProgress> getAdvancementProgress(AdvancementNode placedAdvancement) {
+    private static Optional<AdvancementProgress> getAdvancementProgress(AdvancementNode placedAdvancement) {
         return getAdvancementProgress(placedAdvancement.holder());
     }
 
-    private Optional<AdvancementProgress> getAdvancementProgress(AdvancementHolder advancementEntry) {
+    private static Optional<AdvancementProgress> getAdvancementProgress(AdvancementHolder advancementEntry) {
         LocalPlayer clientPlayer = Minecraft.getInstance().player;
 
         if (clientPlayer == null) {
@@ -242,37 +260,30 @@ public class ClientInstructionManager {
         Advancement advancement = advancementEntry.value();
         Optional<DisplayInfo> optionalAdvancementDisplay = advancement.display();
 
-        removeToast(id);
+        this.removeToast(id);
 
         if (optionalAdvancementDisplay.isEmpty()) {
-            resetCompleteToast();
+            this.resetCompleteToast();
             return;
         }
 
         DisplayInfo advancementDisplay = optionalAdvancementDisplay.get();
-        @Nullable Component description = getDescription(advancementDisplay);
 
         InstructionToast instructionToast = new InstructionToast(
                 client.font,
                 advancementDisplay.getIcon(),
                 advancementDisplay.getTitle(),
-                description
+                getDescription(advancementDisplay).orElse(null)
         );
 
-        queueToast(id, instructionToast, delayMilliseconds);
-
-        resetCompleteToast();
+        this.queueToast(id, instructionToast, delayMilliseconds);
+        this.resetCompleteToast();
     }
 
-    @Nullable
-    private static Component getDescription(DisplayInfo display) {
+    private static Optional<Component> getDescription(DisplayInfo display) {
         Component description = display.getDescription();
-
-        if (!(description instanceof PlainTextContents plainTextContent)) {
-            return description;
-        }
-
-        return plainTextContent.text().isEmpty() ? null : description;
+        return !(description instanceof PlainTextContents plainTextContent) || !plainTextContent.text().isEmpty() ?
+                Optional.of(description) : Optional.empty();
     }
 
     public void queueToast(Identifier id, HideableToast toast, int delayMilliseconds) {
@@ -280,7 +291,7 @@ public class ClientInstructionManager {
         this.waitingToasts.put(id, toast);
     }
 
-    private boolean isParentComplete(AdvancementNode advancement) {
+    private static boolean isParentComplete(AdvancementNode advancement) {
         AdvancementNode parent = advancement.parent();
 
         if (parent == null) {

@@ -5,7 +5,9 @@ import net.minecraft.advancements.triggers.CriterionTrigger;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 
-public final class GFCriteria {
+public final class GFCriteriaTriggers {
+    public static final ItemBrokenTrigger ITEM_BROKEN = register("item_broken", new ItemBrokenTrigger());
+
     public static final CompleteTrialSpawnerTrigger COMPLETE_TRIAL_SPAWNER_ADVANCEMENT = register(
             "complete_trial_spawner",
             new CompleteTrialSpawnerTrigger()
@@ -16,7 +18,7 @@ public final class GFCriteria {
             new OpenAdvancementTabTrigger()
     );
 
-    private GFCriteria() {
+    private GFCriteriaTriggers() {
     }
 
     private static <T extends CriterionTrigger<?>> T register(String name, T criterion) {

@@ -23,7 +23,7 @@
   "gui.genesisframework.recipe_transfer.age_locked.multiple": "Bloqueada por %s eras",
   "instruction.genesisframework.complete.title": "Guia Concluído!",
   "instruction.genesisframework.view_ages": "Ver Eras",
-  "instruction.genesisframework.view_ages.description": "Pressione %s para ver a progressão de eras",
+  "instruction.genesisframework.view_ages.description": "Pressione %s para abrir a tela de progressos e ver a progressão de eras.",
   "item.genesisframework.age_book": "Livro das Eras",
   "lore.genesisframework.age_book": "Uma ferramenta de desenvolvedor que pode ser usada para conceder eras.",
   "item.modifiers.genesisframework.age": "Era %s:",

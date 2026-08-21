@@ -4,6 +4,7 @@ import dev.mariany.genesisframework.item.trait.ItemTrait;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.crafting.Ingredient;
 import org.jspecify.annotations.Nullable;
 
@@ -12,16 +13,16 @@ import java.util.Map;
 import java.util.Optional;
 
 public record PartialAgeItemRestrictions(
-        @Nullable Map<AgeMetadata, List<Ingredient>> gatedByAge,
-        @Nullable Map<AgeMetadata, List<Ingredient>> lockedByAge,
-        @Nullable Map<AgeMetadata, List<ItemTrait>> traitsByAge
+        @Nullable Map<Identifier, List<Ingredient>> gatedByAge,
+        @Nullable Map<Identifier, List<Ingredient>> lockedByAge,
+        @Nullable Map<Identifier, List<ItemTrait>> traitsByAge
 ) {
-    private static final StreamCodec<RegistryFriendlyByteBuf, Optional<Map<AgeMetadata, List<Ingredient>>>>
+    private static final StreamCodec<RegistryFriendlyByteBuf, Optional<Map<Identifier, List<Ingredient>>>>
             OPTIONAL_ITEMS_BY_AGE_STREAM_CODEC = ByteBufCodecs.optional(
             AgeItemRestrictions.INGREDIENTS_BY_AGE_STREAM_CODEC
     );
 
-    private static final StreamCodec<RegistryFriendlyByteBuf, Optional<Map<AgeMetadata, List<ItemTrait>>>>
+    private static final StreamCodec<RegistryFriendlyByteBuf, Optional<Map<Identifier, List<ItemTrait>>>>
             OPTIONAL_TRAITS_BY_AGE_STREAM_CODEC = ByteBufCodecs.optional(
             AgeItemRestrictions.TRAITS_BY_AGE_STREAM_CODEC
     );
@@ -65,15 +66,15 @@ public record PartialAgeItemRestrictions(
         );
     }
 
-    private Optional<Map<AgeMetadata, List<Ingredient>>> optionalGatedByAge() {
+    private Optional<Map<Identifier, List<Ingredient>>> optionalGatedByAge() {
         return Optional.ofNullable(this.gatedByAge);
     }
 
-    private Optional<Map<AgeMetadata, List<Ingredient>>> optionalLockedByAge() {
+    private Optional<Map<Identifier, List<Ingredient>>> optionalLockedByAge() {
         return Optional.ofNullable(this.lockedByAge);
     }
 
-    private Optional<Map<AgeMetadata, List<ItemTrait>>> optionalTraitsByAge() {
+    private Optional<Map<Identifier, List<ItemTrait>>> optionalTraitsByAge() {
         return Optional.ofNullable(this.traitsByAge);
     }
 }

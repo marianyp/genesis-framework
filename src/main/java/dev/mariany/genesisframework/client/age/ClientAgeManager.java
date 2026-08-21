@@ -2,7 +2,7 @@ package dev.mariany.genesisframework.client.age;
 
 import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.age.AgeItemRestrictions;
-import dev.mariany.genesisframework.age.AgeMetadata;
+import dev.mariany.genesisframework.age.AgeFormatter;
 import dev.mariany.genesisframework.age.PartialAgeItemRestrictions;
 import dev.mariany.genesisframework.client.age.requirement.AgeRequirementData;
 import dev.mariany.genesisframework.event.client.item.ClientItemEvents;
@@ -18,6 +18,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.player.Player;
@@ -63,11 +64,11 @@ public class ClientAgeManager {
     }
 
     private void addAttributeTooltips(ItemStack stack, Consumer<Component> consumer) {
-        for (Map.Entry<AgeMetadata, List<ItemTrait>> entry : this.itemRestrictions.traitsByAge().entrySet()) {
-            AgeMetadata ageMetadata = entry.getKey();
+        for (Map.Entry<Identifier, List<ItemTrait>> entry : this.itemRestrictions.traitsByAge().entrySet()) {
+            Identifier ageId = entry.getKey();
             List<ItemTrait> traits = entry.getValue();
             ItemAttributeModifiers itemAttributeModifiers = aggregateItemAttributeModifiers(stack, traits);
-            addAttributeTooltips(itemAttributeModifiers, ageMetadata, consumer);
+            addAttributeTooltips(itemAttributeModifiers, ageId, consumer);
         }
     }
 
@@ -83,7 +84,7 @@ public class ClientAgeManager {
 
     private static void addAttributeTooltips(
             ItemAttributeModifiers itemAttributeModifiers,
-            AgeMetadata ageMetadata,
+            Identifier ageId,
             Consumer<Component> consumer
     ) {
         MutableBoolean first = new MutableBoolean(true);
@@ -97,14 +98,14 @@ public class ClientAgeManager {
                 return;
             }
 
-            addAttributeHeader(ageMetadata, consumer, first);
+            addAttributeHeader(ageId, consumer, first);
 
             display.apply(consumer, getPlayer(), attribute, modifier);
         });
     }
 
     private static void addAttributeHeader(
-            AgeMetadata ageMetadata,
+            Identifier ageId,
             Consumer<Component> consumer,
             MutableBoolean first
     ) {
@@ -114,7 +115,7 @@ public class ClientAgeManager {
 
         MutableComponent ageItemModifierComponent = Component.translatable(
                 "item.modifiers.genesisframework.age",
-                ageMetadata.title()
+                AgeFormatter.title(ageId)
         );
 
         consumer.accept(CommonComponents.EMPTY);
@@ -152,35 +153,35 @@ public class ClientAgeManager {
     }
 
     public Optional<AgeRequirementData> getAgeRequirements(ItemStack stack) {
-        List<AgeMetadata> requiredAges = this.getRequiredAgesMetadata(stack);
+        List<Identifier> requiredAgeIds = this.getRequiredAgeIds(stack);
 
-        if (requiredAges.isEmpty()) {
+        if (requiredAgeIds.isEmpty()) {
             return Optional.empty();
         }
 
-        Set<AgeMetadata> unlockedAges = requiredAges
+        Set<Identifier> unlockedAgeIds = requiredAgeIds
                 .stream()
-                .filter(ageMetadata -> this.isUnlockedForAge(ageMetadata, stack))
+                .filter(ageId -> this.isUnlockedForAge(ageId, stack))
                 .collect(Collectors.toSet());
 
-        return Optional.of(new AgeRequirementData(stack, requiredAges, unlockedAges));
+        return Optional.of(new AgeRequirementData(stack, requiredAgeIds, unlockedAgeIds));
     }
 
-    private boolean isUnlockedForAge(AgeMetadata ageMetadata, ItemStack stack) {
+    private boolean isUnlockedForAge(Identifier ageId, ItemStack stack) {
         return !hasMatchingIngredient(
-                this.itemRestrictions.lockedByAge().getOrDefault(ageMetadata, List.of()),
+                this.itemRestrictions.lockedByAge().getOrDefault(ageId, List.of()),
                 stack
         );
     }
 
-    private List<AgeMetadata> getRequiredAgesMetadata(ItemStack stack) {
+    private List<Identifier> getRequiredAgeIds(ItemStack stack) {
         return this.itemRestrictions
                 .gatedByAge()
                 .entrySet()
                 .stream()
                 .filter(entry -> hasMatchingIngredient(entry.getValue(), stack))
                 .map(Map.Entry::getKey)
-                .sorted(Comparator.comparing(AgeMetadata::id))
+                .sorted()
                 .toList();
     }
 
@@ -218,6 +219,10 @@ public class ClientAgeManager {
     }
 
     private void applyItemRestrictions(AgeItemRestrictions updatedItemRestrictions) {
+        if (updatedItemRestrictions.equals(this.itemRestrictions)) {
+            return;
+        }
+
         boolean initial = !this.initiatedItemRestrictions;
 
         List<Ingredient> oldLockedItems = flatten(this.itemRestrictions.lockedByAge());
@@ -236,7 +241,7 @@ public class ClientAgeManager {
         this.notifyItemRestrictionListeners();
 
         GenesisFramework.LOGGER.info(
-                "Updated item restrictions. Old Locked Items Count: {} | New Locked Items Count: {}",
+                "Updated item restrictions. Old locked items count: {} | New locked items count: {}",
                 oldLockedItemsSize,
                 newLockedItemsSize
         );
@@ -257,7 +262,7 @@ public class ClientAgeManager {
                 .collect(Collectors.toSet());
     }
 
-    private static List<Ingredient> flatten(Map<AgeMetadata, List<Ingredient>> ingredientsByAge) {
+    private static List<Ingredient> flatten(Map<Identifier, List<Ingredient>> ingredientsByAge) {
         return ingredientsByAge.values().stream().flatMap(Collection::stream).toList();
     }
 

@@ -2,11 +2,14 @@ package dev.mariany.genesisframework.item.trait;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderSet;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.crafting.Ingredient;
 
+@SuppressWarnings("unused")
 public record ItemTrait(Ingredient ingredient, ItemAttributeModifiers attributeModifiers) {
     public static final Codec<ItemTrait> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Ingredient.CODEC.fieldOf("items").forGetter(ItemTrait::ingredient),
@@ -20,4 +23,8 @@ public record ItemTrait(Ingredient ingredient, ItemAttributeModifiers attributeM
             ItemTrait::attributeModifiers,
             ItemTrait::new
     );
+
+    public ItemTrait(HolderSet.Named<Item> tag, ItemAttributeModifiers attributeModifiers) {
+        this(Ingredient.of(tag), attributeModifiers);
+    }
 }

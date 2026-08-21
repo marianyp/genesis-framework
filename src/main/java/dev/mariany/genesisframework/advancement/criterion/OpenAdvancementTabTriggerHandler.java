@@ -24,10 +24,14 @@ public final class OpenAdvancementTabTriggerHandler {
         MinecraftServer server = player.level().getServer();
         Identifier advancementId = packet.getTab();
 
-        if (advancementId != null && server.getAdvancements().get(advancementId) == null) {
-            advancementId = null;
-        }
+        Identifier validatedAdvancementId = advancementId == null || isUnknownAdvancement(server, advancementId) ?
+                null :
+                advancementId;
 
-        GFCriteria.OPEN_ADVANCEMENT_TAB.trigger(player, advancementId);
+        GFCriteriaTriggers.OPEN_ADVANCEMENT_TAB.trigger(player, validatedAdvancementId);
+    }
+
+    private static boolean isUnknownAdvancement(MinecraftServer server, Identifier advancementId) {
+        return server.getAdvancements().get(advancementId) == null;
     }
 }

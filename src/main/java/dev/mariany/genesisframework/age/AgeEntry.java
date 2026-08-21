@@ -74,7 +74,7 @@ public class AgeEntry {
 
     private static DisplayInfo createAdvancementDisplay(Identifier id, Age age, boolean alert) {
         AgeDisplay ageDisplay = age.display();
-        Component title = AgeMetadata.create(id, age).component();
+        Component title = AgeFormatter.format(id);
 
         AdvancementType frame = age.requiresParent() ? AdvancementType.GOAL : AdvancementType.CHALLENGE;
 
@@ -112,7 +112,6 @@ public class AgeEntry {
         return Optional.empty();
     }
 
-
     public static Identifier getAdvancementId(AgeEntry ageEntry) {
         return getAdvancementId(ageEntry.getId());
     }
@@ -127,10 +126,6 @@ public class AgeEntry {
 
     public Age getAge() {
         return this.age;
-    }
-
-    public AgeMetadata getMetaData() {
-        return AgeMetadata.create(this.id, this.age);
     }
 
     public AdvancementHolder getAdvancementHolder() {

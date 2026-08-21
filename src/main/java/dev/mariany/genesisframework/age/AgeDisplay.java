@@ -6,11 +6,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.world.item.ItemStackTemplate;
 
-public record AgeDisplay(ItemStackTemplate icon, Component title, Component description) {
+public record AgeDisplay(ItemStackTemplate icon, Component description) {
     public static final Codec<AgeDisplay> CODEC = RecordCodecBuilder.create(
             instance -> instance.group(
                             ItemStackTemplate.CODEC.fieldOf("icon").forGetter(AgeDisplay::icon),
-                            ComponentSerialization.CODEC.fieldOf("title").forGetter(AgeDisplay::title),
                             ComponentSerialization.CODEC.optionalFieldOf("description", Component.empty()).forGetter(AgeDisplay::description)
                     )
                     .apply(instance, AgeDisplay::new)

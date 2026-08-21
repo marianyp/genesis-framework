@@ -36,6 +36,6 @@ public final class CompleteTrialSpawnerTriggerHandler {
             return;
         }
 
-        GFCriteria.COMPLETE_TRIAL_SPAWNER_ADVANCEMENT.trigger(serverPlayer, ominous);
+        GFCriteriaTriggers.COMPLETE_TRIAL_SPAWNER_ADVANCEMENT.trigger(serverPlayer, ominous);
     }
 }

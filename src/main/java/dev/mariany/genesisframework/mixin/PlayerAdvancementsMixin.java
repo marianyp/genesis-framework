@@ -8,7 +8,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 
@@ -18,10 +17,30 @@ public class PlayerAdvancementsMixin {
     private ServerPlayer player;
 
     /**
-     * Invokes {@link ServerAdvancementEvents#COMPLETION_UPDATED} when advancement completion is marked for update.
+     * Invokes {@link ServerAdvancementEvents#COMPLETION_UPDATED} when revoking advancement.
      */
-    @Inject(method = "markForVisibilityUpdate", at = @At(value = "TAIL"))
-    public void injectMarkForVisibilityUpdate(AdvancementHolder advancement, CallbackInfo ci) {
+    @Inject(
+            method = "revoke",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/PlayerAdvancements;markForVisibilityUpdate(Lnet/minecraft/advancements/AdvancementHolder;)V"
+            )
+    )
+    public void injectRevoke(AdvancementHolder advancement, String criterion, CallbackInfoReturnable<Boolean> cir) {
+        ServerAdvancementEvents.COMPLETION_UPDATED.invoker().onCompletionUpdated(this.player, advancement);
+    }
+
+    /**
+     * Invokes {@link ServerAdvancementEvents#COMPLETION_UPDATED} when awarding advancement.
+     */
+    @Inject(
+            method = "award",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/PlayerAdvancements;markForVisibilityUpdate(Lnet/minecraft/advancements/AdvancementHolder;)V"
+            )
+    )
+    public void injectAward(AdvancementHolder advancement, String criterion, CallbackInfoReturnable<Boolean> cir) {
         ServerAdvancementEvents.COMPLETION_UPDATED.invoker().onCompletionUpdated(this.player, advancement);
     }
 
