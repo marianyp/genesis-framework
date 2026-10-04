@@ -6,7 +6,6 @@ import dev.mariany.genesisframework.advancement.criterion.CompleteTrialSpawnerTr
 import dev.mariany.genesisframework.advancement.criterion.ItemBrokenTrigger;
 import dev.mariany.genesisframework.stat.GFStats;
 import net.minecraft.advancements.AdvancementRequirements;
-import net.minecraft.advancements.predicates.ContextAwarePredicate;
 import net.minecraft.advancements.predicates.DamageSourcePredicate;
 import net.minecraft.advancements.predicates.ItemPredicate;
 import net.minecraft.advancements.predicates.MinMaxBounds;
@@ -29,6 +28,7 @@ import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -178,8 +178,8 @@ public record Age(
 
             EntityPredicate.Builder entityPredicate = EntityPredicate.Builder.entity().player(playerPredicate);
 
-            ContextAwarePredicate wrappedEntityPredicate = EntityPredicate.wrap(entityPredicate);
-            Optional<ContextAwarePredicate> optionalPlayerPredicate = Optional.of(wrappedEntityPredicate);
+            Holder<LootItemCondition> wrappedEntityPredicate = EntityPredicate.wrap(entityPredicate);
+            Optional<Holder<LootItemCondition>> optionalPlayerPredicate = Optional.of(wrappedEntityPredicate);
 
             PlayerTrigger.TriggerInstance triggerInstance = new PlayerTrigger.TriggerInstance(optionalPlayerPredicate);
 
@@ -288,7 +288,7 @@ public record Age(
         }
 
         public Builder requireLevel(MinMaxBounds.Ints level) {
-            ContextAwarePredicate predicate = EntityPredicate.wrap(
+            Holder<LootItemCondition> predicate = EntityPredicate.wrap(
                     EntityPredicate.Builder
                             .entity()
                             .player(PlayerPredicate.Builder.player().setLevel(level).build())
@@ -313,7 +313,7 @@ public record Age(
 
             EntityPredicate entityPredicate = EntityPredicate.Builder.entity().player(playerPredicate).build();
 
-            ContextAwarePredicate predicate = EntityPredicate.wrap(entityPredicate);
+            Holder<LootItemCondition> predicate = EntityPredicate.wrap(entityPredicate);
 
             PlayerTrigger.TriggerInstance triggerInstance = new PlayerTrigger.TriggerInstance(Optional.of(predicate));
 

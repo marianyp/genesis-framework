@@ -225,7 +225,7 @@ public class ClientInstructionManager {
 
     private List<AdvancementNode> getInstructionAdvancements(LocalPlayer localPlayer) {
         ClientAdvancements clientAdvancementManager = localPlayer.connection.getAdvancements();
-        AdvancementTree advancementTree = clientAdvancementManager.getTree();
+        AdvancementTree advancementTree = clientAdvancementManager.tree();
         Collection<AdvancementNode> nodes = advancementTree.nodes();
         return nodes.stream().filter(this::isInstructionAdvancement).toList();
     }
@@ -271,8 +271,8 @@ public class ClientInstructionManager {
 
         InstructionToast instructionToast = new InstructionToast(
                 client.font,
-                advancementDisplay.getIcon(),
-                advancementDisplay.getTitle(),
+                advancementDisplay.icon(),
+                advancementDisplay.title(),
                 getDescription(advancementDisplay).orElse(null)
         );
 
@@ -281,7 +281,7 @@ public class ClientInstructionManager {
     }
 
     private static Optional<Component> getDescription(DisplayInfo display) {
-        Component description = display.getDescription();
+        Component description = display.description();
         return !(description instanceof PlainTextContents plainTextContent) || !plainTextContent.text().isEmpty() ?
                 Optional.of(description) : Optional.empty();
     }

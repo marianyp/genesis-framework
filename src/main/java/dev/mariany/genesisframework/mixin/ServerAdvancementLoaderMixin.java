@@ -1,33 +1,47 @@
 package dev.mariany.genesisframework.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import dev.mariany.genesisframework.event.server.advancement.ServerAdvancementEvents;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementTree;
+import net.minecraft.server.ServerAdvancementManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.Map;
-import net.minecraft.advancements.Advancement;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.ServerAdvancementManager;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.util.profiling.ProfilerFiller;
 
 @Mixin(ServerAdvancementManager.class)
 public class ServerAdvancementLoaderMixin {
-    /**
-     * Invokes the {@link ServerAdvancementEvents#BEFORE_ADVANCEMENTS_LOAD} event during advancements load.
-     */
-    @Inject(
-            at = @At("HEAD"),
-            method = "apply(Ljava/util/Map;Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/util/profiling/ProfilerFiller;)V"
+    @WrapOperation(
+            method = "<init>",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/advancements/AdvancementTree;addAll(Ljava/lang/Iterable;)V"
+            )
     )
-    protected void apply(
-            Map<Identifier, Advancement> map,
-            ResourceManager resourceManager,
-            ProfilerFiller profiler,
-            CallbackInfo ci
+    private void wrapAddAll(
+            AdvancementTree tree,
+            Iterable<AdvancementHolder> advancements,
+            Operation<Void> original
     ) {
-        ServerAdvancementEvents.BEFORE_ADVANCEMENTS_LOAD.invoker().onAdvancementsLoaded(map);
+        ServerAdvancementManager serverAdvancementManager = (ServerAdvancementManager) (Object) this;
+
+        if (ServerAdvancementEvents.ALLOW_TREE_BUILD.invoker().allowTreeBuild(serverAdvancementManager)) {
+            original.call(tree, advancements);
+        }
+    }
+
+    @WrapOperation(
+            method = "<init>",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/advancements/AdvancementTree;repositionNodes()V"
+            )
+    )
+    private void wrapRepositionNodes(AdvancementTree tree, Operation<Void> original) {
+        ServerAdvancementManager serverAdvancementManager = (ServerAdvancementManager) (Object) this;
+
+        if (ServerAdvancementEvents.ALLOW_TREE_BUILD.invoker().allowTreeBuild(serverAdvancementManager)) {
+            original.call(tree);
+        }
     }
 }

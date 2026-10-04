@@ -2,12 +2,12 @@ package dev.mariany.genesisframework.advancement.criterion;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.advancements.predicates.ContextAwarePredicate;
-import net.minecraft.advancements.predicates.entity.EntityPredicate;
 import net.minecraft.advancements.triggers.Criterion;
 import net.minecraft.advancements.triggers.SimpleCriterionTrigger;
+import net.minecraft.core.Holder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
@@ -22,11 +22,11 @@ public class OpenAdvancementTabTrigger extends SimpleCriterionTrigger<OpenAdvanc
         this.trigger(player, triggerInstance -> triggerInstance.matches(tab));
     }
 
-    public record TriggerInstance(Optional<ContextAwarePredicate> player, Optional<Identifier> advancementId)
+    public record TriggerInstance(Optional<Holder<LootItemCondition>> player, Optional<Identifier> advancementId)
             implements SimpleCriterionTrigger.SimpleInstance {
         public static final Codec<TriggerInstance> CODEC = RecordCodecBuilder.create(
                 instance -> instance.group(
-                                            EntityPredicate.ADVANCEMENT_CODEC
+                                            LootItemCondition.CODEC
                                                     .optionalFieldOf("player")
                                                     .forGetter(TriggerInstance::player),
                                             Identifier.CODEC.optionalFieldOf("advancement")
@@ -44,14 +44,11 @@ public class OpenAdvancementTabTrigger extends SimpleCriterionTrigger<OpenAdvanc
         }
 
         public static Criterion<TriggerInstance> create(
-                @Nullable ContextAwarePredicate playerPredicate,
+                @Nullable Holder<LootItemCondition> playerPredicate,
                 @Nullable Identifier tab
         ) {
             return GFCriteriaTriggers.OPEN_ADVANCEMENT_TAB.createCriterion(
-                    new TriggerInstance(
-                            Optional.ofNullable(playerPredicate),
-                            Optional.ofNullable(tab)
-                    )
+                    new TriggerInstance(Optional.ofNullable(playerPredicate), Optional.ofNullable(tab))
             );
         }
 

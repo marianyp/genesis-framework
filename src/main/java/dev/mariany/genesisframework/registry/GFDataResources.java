@@ -17,23 +17,17 @@ public final class GFDataResources {
 
     public static void bootstrap() {
         GenesisFramework.bootstrapLog("Data Resources");
-        registerBeforeAdvancements("ages", AgeDataLoader::new);
-        registerBeforeAdvancements("instructions", InstructionDataLoader::new);
+        registerBeforeVanilla("ages", AgeDataLoader::new);
+        registerBeforeVanilla("instructions", InstructionDataLoader::new);
     }
 
-    private static void registerBeforeAdvancements(
+    private static void registerBeforeVanilla(
             String name,
             Function<HolderLookup.Provider, PreparableReloadListener> factory
     ) {
-        registerBeforeAdvancements(GenesisFramework.id(name), factory);
-    }
-
-    private static void registerBeforeAdvancements(
-            Identifier id,
-            Function<HolderLookup.Provider, PreparableReloadListener> factory
-    ) {
+        Identifier id = GenesisFramework.id(name);
         DataResourceLoader loader = DataResourceLoader.get();
         loader.registerReloadListener(id, factory);
-        loader.addListenerOrdering(id, ResourceReloaderKeys.Server.ADVANCEMENTS);
+        loader.addListenerOrdering(id, ResourceReloaderKeys.BEFORE_VANILLA);
     }
 }

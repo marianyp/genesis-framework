@@ -1,8 +1,11 @@
 package dev.mariany.genesisframework.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import dev.mariany.genesisframework.event.client.advancement.ClientAdvancementEvents;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementNode;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.advancements.AdvancementTab;
 import net.minecraft.client.gui.screens.advancements.AdvancementsScreen;
 import net.minecraft.client.multiplayer.ClientAdvancements;
@@ -42,12 +45,24 @@ public abstract class AdvancementsScreenMixin {
     /**
      * Queries {@link ClientAdvancementEvents#ALLOW_ROOT} before adding an advancement root to the screen.
      */
-    @Inject(method = "onAddAdvancementRoot", at = @At(value = "HEAD"), cancellable = true)
-    public void injectOnAddAdvancementRoot(AdvancementNode root, CallbackInfo ci) {
-        if (ClientAdvancementEvents.ALLOW_ROOT.invoker().allowRoot(root)) {
-            return;
+    @WrapOperation(
+            method = "onAdvancementsUpdated",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/screens/advancements/AdvancementTab;create(Lnet/minecraft/client/Minecraft;Lnet/minecraft/client/gui/screens/advancements/AdvancementsScreen;ILnet/minecraft/advancements/AdvancementNode;)Lnet/minecraft/client/gui/screens/advancements/AdvancementTab;"
+            )
+    )
+    private @Nullable AdvancementTab wrapCreateTab(
+            Minecraft minecraft,
+            AdvancementsScreen screen,
+            int index,
+            AdvancementNode root,
+            Operation<AdvancementTab> original
+    ) {
+        if (!ClientAdvancementEvents.ALLOW_ROOT.invoker().allowRoot(root)) {
+            return null;
         }
 
-        ci.cancel();
+        return original.call(minecraft, screen, index, root);
     }
 }

@@ -2,11 +2,11 @@
   "required": false,
   "package": "dev.mariany.genesisframework.mixin.compat.jei",
   "plugin": "dev.mariany.genesisframework.mixin.compat.jei.JEIMixinConfigPlugin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "injectors": {
     "defaultRequire": 0
   },
   "client": [
-    "RecipeTransferUtilMixin"
+    "RecipeTransferServiceMixin"
   ]
 }

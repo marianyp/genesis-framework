@@ -19,7 +19,6 @@ import dev.mariany.genesisframework.instruction.ServerInstructionManager;
 import dev.mariany.genesisframework.item.GFItems;
 import dev.mariany.genesisframework.packet.GFPackets;
 import dev.mariany.genesisframework.registry.GFDataResources;
-import dev.mariany.genesisframework.server.command.AgeCommand;
 import dev.mariany.genesisframework.server.command.GFCommands;
 import dev.mariany.genesisframework.sound.GFSoundEvents;
 import dev.mariany.genesisframework.stat.GFStats;
@@ -62,6 +61,7 @@ public class GenesisFramework implements ModInitializer {
     @Override
     public void onInitialize() {
         GFDataResources.bootstrap();
+        GenesisFramework.DYNAMIC_ADVANCEMENTS.bootstrap();
         GFPackets.bootstrap();
         GFComponentTypes.bootstrap();
         GFSoundEvents.bootstrap();
@@ -82,8 +82,6 @@ public class GenesisFramework implements ModInitializer {
         InstructionSyncManager.bootstrap();
         GenesisFramework.AGE_MANAGER.bootstrap();
         GenesisFramework.INSTRUCTION_MANAGER.bootstrap();
-        GenesisFramework.DYNAMIC_ADVANCEMENTS.bootstrap();
-        AgeCommand.bootstrap();
         GFCommands.bootstrap();
     }
 }

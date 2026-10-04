@@ -64,6 +64,7 @@ public final class InstructionsCommand {
                 () -> Component.translatable("commands.genesisframework.instructions.skip", processed),
                 false
         );
+
         return processed;
     }
 
@@ -77,6 +78,7 @@ public final class InstructionsCommand {
 
         ServerInstructionManager serverInstructionManager = GenesisFramework.getServerInstructionManager();
         Collection<InstructionEntry> instructions = serverInstructionManager.getInstructions();
+
         int processed = 0;
 
         for (InstructionEntry instruction : instructions) {

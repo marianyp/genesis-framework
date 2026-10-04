@@ -2,16 +2,16 @@ package dev.mariany.genesisframework.advancement.criterion;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.advancements.predicates.ContextAwarePredicate;
-import net.minecraft.advancements.predicates.entity.EntityPredicate;
 import net.minecraft.advancements.triggers.Criterion;
 import net.minecraft.advancements.triggers.SimpleCriterionTrigger;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
@@ -26,11 +26,11 @@ public class ItemBrokenTrigger extends SimpleCriterionTrigger<ItemBrokenTrigger.
         this.trigger(player, conditions -> conditions.matches(stack));
     }
 
-    public record Conditions(Optional<ContextAwarePredicate> player, Ingredient ingredient)
+    public record Conditions(Optional<Holder<LootItemCondition>> player, Ingredient ingredient)
             implements SimpleInstance {
         public static final Codec<Conditions> CODEC = RecordCodecBuilder.create(
                 instance -> instance.group(
-                                            EntityPredicate.ADVANCEMENT_CODEC
+                                            LootItemCondition.CODEC
                                                     .optionalFieldOf("player")
                                                     .forGetter(Conditions::player),
                                             Ingredient.CODEC.fieldOf("item").forGetter(Conditions::ingredient)
@@ -55,7 +55,7 @@ public class ItemBrokenTrigger extends SimpleCriterionTrigger<ItemBrokenTrigger.
         }
 
         public static Criterion<Conditions> create(
-                @Nullable ContextAwarePredicate playerPredicate,
+                @Nullable Holder<LootItemCondition> playerPredicate,
                 Ingredient ingredient
         ) {
             return GFCriteriaTriggers.ITEM_BROKEN.createCriterion(new Conditions(

@@ -23,8 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public abstract class CodecDataResourceReloadListener<T>
-        extends SimpleReloadListener<Map<Identifier, T>> {
+public abstract class CodecDataResourceReloadListener<T> extends SimpleReloadListener<Map<Identifier, T>> {
     private final HolderLookup.Provider registries;
     private final Codec<T> codec;
     private final FileToIdConverter lister;
@@ -45,7 +44,6 @@ public abstract class CodecDataResourceReloadListener<T>
     protected final Map<Identifier, T> prepare(PreparableReloadListener.SharedState state) {
         RegistryOps<JsonElement> ops = this.registries.createSerializationContext(JsonOps.INSTANCE);
         Map<Identifier, Resource> resources = this.lister.listMatchingResources(state.resourceManager());
-
         Map<Identifier, T> result = new HashMap<>();
 
         for (Entry<Identifier, Resource> entry : resources.entrySet()) {
@@ -62,13 +60,11 @@ public abstract class CodecDataResourceReloadListener<T>
                 DataResult<T> parsed = this.codec.parse(ops, json);
 
                 parsed.ifSuccess(value -> {
-                    if (result.putIfAbsent(id, value) == null) {
-                        return;
+                    if (result.putIfAbsent(id, value) != null) {
+                        throw new IllegalStateException(
+                                "Duplicate " + this.resourceType + " data file ignored with ID " + id
+                        );
                     }
-
-                    throw new IllegalStateException(
-                            "Duplicate " + this.resourceType + " data file ignored with ID " + id
-                    );
                 }).ifError(error -> GenesisFramework.LOGGER.error(
                         "Couldn't parse {} data file '{}' from '{}': {}",
                         this.resourceType,

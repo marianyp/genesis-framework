@@ -2,7 +2,6 @@ package dev.mariany.genesisframework.mixin;
 
 import dev.mariany.genesisframework.event.item.ItemStackEvents;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,7 +20,7 @@ public class ItemStackMixin {
     private void injectOnDurabilityChange(
             int damage,
             @Nullable ServerPlayer player,
-            Consumer<Item> breakCallback,
+            Consumer<ItemStack> breakCallback,
             CallbackInfo ci
     ) {
         if (player == null) {

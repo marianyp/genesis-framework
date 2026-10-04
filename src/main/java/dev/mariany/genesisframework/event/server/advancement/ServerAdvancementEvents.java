@@ -2,28 +2,53 @@ package dev.mariany.genesisframework.event.server.advancement;
 
 import net.fabricmc.fabric.api.event.Event;
 import net.fabricmc.fabric.api.event.EventFactory;
-import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementNode;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.network.protocol.game.ServerboundSeenAdvancementsPacket;
-import net.minecraft.resources.Identifier;
+import net.minecraft.server.ServerAdvancementManager;
 import net.minecraft.server.level.ServerPlayer;
-import java.util.Map;
 
 public final class ServerAdvancementEvents {
     private ServerAdvancementEvents() {
     }
 
-    /**
-     * Called when advancements are loaded or updated.
-     */
-    public static final Event<BeforeAdvancementsLoad> BEFORE_ADVANCEMENTS_LOAD = EventFactory.createArrayBacked(
-            BeforeAdvancementsLoad.class,
-            callbacks -> map -> {
-                for (BeforeAdvancementsLoad callback : callbacks) {
-                    callback.onAdvancementsLoaded(map);
+    public static final Event<CreateManager> CREATE_MANAGER = EventFactory.createArrayBacked(
+            CreateManager.class,
+            callbacks -> (registries, original) -> {
+                AdvancementManagerFactory factory = original;
+
+                for (int index = callbacks.length - 1; index >= 0; index--) {
+                    CreateManager callback = callbacks[index];
+                    AdvancementManagerFactory next = factory;
+                    factory = provider -> callback.createManager(provider, next);
                 }
-            });
+
+                return factory.create(registries);
+            }
+    );
+
+    public static final Event<AllowTreeBuild> ALLOW_TREE_BUILD = EventFactory.createArrayBacked(
+            AllowTreeBuild.class,
+            callbacks -> manager -> {
+                for (AllowTreeBuild callback : callbacks) {
+                    if (!callback.allowTreeBuild(manager)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+    );
+
+    public static final Event<FinalizeReloadManager> FINALIZE_RELOAD_MANAGER = EventFactory.createArrayBacked(
+            FinalizeReloadManager.class,
+            callbacks -> (manager, registries) -> {
+                for (FinalizeReloadManager callback : callbacks) {
+                    callback.onFinalizeReloadManager(manager, registries);
+                }
+            }
+    );
 
     public static final Event<ShouldForceDisplay> SHOULD_FORCE_DISPLAY = EventFactory.createArrayBacked(
             ShouldForceDisplay.class,
@@ -81,15 +106,27 @@ public final class ServerAdvancementEvents {
             }
     );
 
-    public interface BeforeAdvancementsLoad {
-        /**
-         * @param advancementMap Mutable map for advancements that will be loaded.
-         */
-        void onAdvancementsLoaded(Map<Identifier, Advancement> advancementMap);
-    }
-
     public interface ShouldForceDisplay {
         boolean shouldForceDisplay(AdvancementNode advancement);
+    }
+
+    public interface AdvancementManagerFactory {
+        ServerAdvancementManager create(HolderLookup.Provider registries);
+    }
+
+    public interface CreateManager {
+        ServerAdvancementManager createManager(
+                HolderLookup.Provider registries,
+                AdvancementManagerFactory original
+        );
+    }
+
+    public interface AllowTreeBuild {
+        boolean allowTreeBuild(ServerAdvancementManager manager);
+    }
+
+    public interface FinalizeReloadManager {
+        void onFinalizeReloadManager(ServerAdvancementManager manager, HolderLookup.Provider registries);
     }
 
     public interface AllowAward {

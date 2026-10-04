@@ -1,33 +1,33 @@
 package dev.mariany.genesisframework.server.command;
 
-import dev.mariany.genesisframework.GenesisFramework;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.suggestion.Suggestions;
-import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import dev.mariany.genesisframework.GenesisFramework;
 import dev.mariany.genesisframework.advancement.AdvancementHelper;
-import dev.mariany.genesisframework.age.Age;
 import dev.mariany.genesisframework.age.AgeEntry;
 import dev.mariany.genesisframework.age.AgeShareManager;
-import dev.mariany.genesisframework.event.server.command.ServerCommandEvents;
-import dev.mariany.genesisframework.registry.GFRegistries;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.commands.arguments.ResourceKeyArgument;
-import net.minecraft.core.Registry;
+import net.minecraft.commands.arguments.IdentifierArgument;
+import net.minecraft.commands.arguments.selector.EntitySelector;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+
 import java.util.Collection;
-import java.util.concurrent.CompletableFuture;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 public final class AgeCommand {
     private static final DynamicCommandExceptionType AGE_NOT_FOUND_EXCEPTION = new DynamicCommandExceptionType(
@@ -37,92 +37,72 @@ public final class AgeCommand {
     private AgeCommand() {
     }
 
-    public static void bootstrap() {
-        GenesisFramework.bootstrapLog("Age Command");
-        ServerCommandEvents.SUGGEST_REGISTRY_ELEMENTS.register(AgeCommand::suggestAgeIds);
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        LiteralArgumentBuilder<CommandSourceStack> builder = Commands
+                .literal("age")
+                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                .then(createCacheCommand())
+                .then(createGiveCommand())
+                .then(createTakeCommand());
+
+        dispatcher.register(builder);
     }
 
-    private static Optional<CompletableFuture<Suggestions>> suggestAgeIds(
-            ResourceKey<? extends Registry<?>> key,
-            SharedSuggestionProvider.ElementSuggestionType suggestionType,
-            SuggestionsBuilder builder,
-            CommandContext<?> context
-    ) {
-        if (key != GFRegistries.AGE) {
-            return Optional.empty();
-        }
+    private static LiteralArgumentBuilder<CommandSourceStack> createCacheCommand() {
+        LiteralArgumentBuilder<CommandSourceStack> clear = Commands
+                .literal("clear")
+                .then(
+                        Commands.literal("global")
+                                .executes(context -> executeClearCache(
+                                        context.getSource(),
+                                        true
+                                ))
+                )
+                .then(
+                        Commands.literal("teams")
+                                .executes(context -> executeClearCache(
+                                        context.getSource(),
+                                        false
+                                ))
+                );
 
-        return Optional.of(SharedSuggestionProvider.suggestResource(
-                GenesisFramework.getServerAgeManager().getAges().stream().map(AgeEntry::getId),
-                builder
-        ));
+        return Commands.literal("cache").then(clear);
     }
 
-    public static void register(
-            CommandDispatcher<CommandSourceStack> dispatcher
-    ) {
-        dispatcher.register(
-                Commands.literal("age")
-                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                        .then(Commands.literal("cache")
-                                .then(Commands.literal("clear")
-                                        .then(Commands.literal("global")
-                                                .executes(
-                                                        context ->
-                                                                executeClearCache(
-                                                                        context.getSource(), true
-                                                                )
-                                                )
-                                        )
-                                        .then(Commands.literal("teams")
-                                                .executes(
-                                                        context ->
-                                                                executeClearCache(
-                                                                        context.getSource(), false
-                                                                )
-                                                )
-                                        )
-                                )
-                        )
-                        .then(Commands.literal("give")
-                                .then(Commands.argument("targets", EntityArgument.players()).then(
-                                                Commands.argument(
-                                                                "age",
-                                                                ResourceKeyArgument.key(GFRegistries.AGE)
-                                                        )
-                                                        .executes(context ->
-                                                                executeGive(
-                                                                        context.getSource(),
-                                                                        EntityArgument.getPlayers(
-                                                                                context,
-                                                                                "targets"
-                                                                        ),
-                                                                        getAgeEntry(context)
-                                                                )
-                                                        )
-                                        )
-                                )
-                        )
-                        .then(Commands.literal("take")
-                                .then(Commands.argument("targets", EntityArgument.players()).then(
-                                                Commands.argument(
-                                                                "age",
-                                                                ResourceKeyArgument.key(GFRegistries.AGE)
-                                                        )
-                                                        .executes(context ->
-                                                                executeTake(
-                                                                        context.getSource(),
-                                                                        EntityArgument.getPlayers(
-                                                                                context,
-                                                                                "targets"
-                                                                        ),
-                                                                        getAgeEntry(context)
-                                                                )
-                                                        )
-                                        )
-                                )
-                        )
-        );
+    private static LiteralArgumentBuilder<CommandSourceStack> createGiveCommand() {
+        RequiredArgumentBuilder<CommandSourceStack, Identifier> age = Commands
+                .argument("age", IdentifierArgument.id())
+                .suggests(AgeCommand::suggestAges)
+                .executes(context -> executeGive(
+                        context.getSource(),
+                        EntityArgument.getPlayers(context, "targets"),
+                        getAgeEntry(context)
+                ));
+
+        RequiredArgumentBuilder<CommandSourceStack, EntitySelector> targets = Commands.argument(
+                "targets",
+                EntityArgument.players()
+        ).then(age);
+
+        return Commands.literal("give").then(targets);
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> createTakeCommand() {
+        RequiredArgumentBuilder<CommandSourceStack, Identifier> age = Commands
+                .argument("age", IdentifierArgument.id())
+                .suggests(AgeCommand::suggestAges)
+                .executes(context -> executeTake(
+                        context.getSource(),
+                        EntityArgument.getPlayers(context, "targets"),
+                        getAgeEntry(context)
+                ));
+
+        RequiredArgumentBuilder<CommandSourceStack, EntitySelector> targets = Commands.argument(
+                "targets",
+                EntityArgument.players()
+        ).then(age);
+
+        return Commands.literal("take").then(targets);
     }
 
     private static int executeClearCache(CommandSourceStack source, boolean global) {
@@ -143,7 +123,8 @@ public final class AgeCommand {
     private static int executeGive(CommandSourceStack source, Collection<ServerPlayer> targets, AgeEntry ageEntry) {
         int successCount = AgeShareManager.progressPlayersToAge(targets, ageEntry);
 
-        source.sendSuccess(() -> Component.translatableEscape(
+        source.sendSuccess(
+                () -> Component.translatableEscape(
                         "commands.genesisframework.age.give.success",
                         ageEntry.getId(),
                         successCount
@@ -157,7 +138,8 @@ public final class AgeCommand {
     private static int executeTake(CommandSourceStack source, Collection<ServerPlayer> targets, AgeEntry ageEntry) {
         int successCount = (int) targets.stream().filter(player -> takeAge(player, ageEntry)).count();
 
-        source.sendSuccess(() -> Component.translatableEscape(
+        source.sendSuccess(
+                () -> Component.translatableEscape(
                         "commands.genesisframework.age.take.success",
                         ageEntry.getId(),
                         successCount
@@ -171,15 +153,18 @@ public final class AgeCommand {
     private static boolean takeAge(ServerPlayer player, AgeEntry ageEntry) {
         boolean removed = AdvancementHelper.revokeAdvancement(player, ageEntry.getAdvancementHolder());
 
-        List<AgeEntry> children = GenesisFramework.getServerAgeManager()
-                                                  .getAges()
-                                                  .stream()
-                                                  .filter(otherAge ->
-                        otherAge.getAge().requiresParent() && otherAge.getAge().parent()
-                                .map(parentId -> parentId.equals(ageEntry.getId()))
-                                .orElse(false)
+        List<AgeEntry> children = GenesisFramework
+                .getServerAgeManager()
+                .getAges()
+                .stream()
+                .filter(otherAge ->
+                                otherAge.getAge().requiresParent() &&
+                                        otherAge.getAge()
+                                                .parent()
+                                                .map(parentId -> parentId.equals(ageEntry.getId()))
+                                                .orElse(false)
                 )
-                                                  .toList();
+                .toList();
 
         for (AgeEntry child : children) {
             removed = takeAge(player, child) || removed;
@@ -189,18 +174,24 @@ public final class AgeCommand {
     }
 
     private static AgeEntry getAgeEntry(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        ResourceKey<Age> registryKey = ResourceKeyArgument.getRegistryKey(
-                context,
-                "age",
-                GFRegistries.AGE,
-                AGE_NOT_FOUND_EXCEPTION
-        );
-        Optional<AgeEntry> optionalAgeEntry = GenesisFramework.getServerAgeManager().get(registryKey.identifier());
+        Identifier id = IdentifierArgument.getId(context, "age");
+
+        Optional<AgeEntry> optionalAgeEntry = GenesisFramework.getServerAgeManager().get(id);
 
         if (optionalAgeEntry.isEmpty()) {
-            throw AGE_NOT_FOUND_EXCEPTION.create(registryKey.identifier());
+            throw AGE_NOT_FOUND_EXCEPTION.create(id);
         }
 
         return optionalAgeEntry.get();
+    }
+
+    private static CompletableFuture<Suggestions> suggestAges(
+            CommandContext<CommandSourceStack> context,
+            SuggestionsBuilder builder
+    ) {
+        return SharedSuggestionProvider.suggestResource(
+                GenesisFramework.getServerAgeManager().getAges().stream().map(AgeEntry::getId),
+                builder
+        );
     }
 }
