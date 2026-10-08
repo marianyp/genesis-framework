@@ -19,6 +19,10 @@ public class GenesisFrameworkJEIPlugin implements IModPlugin {
     private final JEIAgeRequirementManager ageRequirementManager = new JEIAgeRequirementManager();
     private final Runnable itemRestrictionListener = this::scheduleViewRefresh;
 
+    public GenesisFrameworkJEIPlugin() {
+        JEIAgeTransferHandler.bootstrap();
+    }
+
     @Nullable
     private IJeiRuntime runtime;
 
@@ -40,13 +44,7 @@ public class GenesisFrameworkJEIPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime runtime) {
         this.runtime = runtime;
-
-        JEIAgeTransferHandler.bootstrap();
-
-        GenesisFrameworkClient
-                .getAgeManager()
-                .addItemRestrictionListener(this.itemRestrictionListener);
-
+        GenesisFrameworkClient.getAgeManager().addItemRestrictionListener(this.itemRestrictionListener);
         this.scheduleViewRefresh();
     }
 
