@@ -19,17 +19,19 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.ItemStackLinkedSet;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.SlotDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
+import net.minecraft.world.level.Level;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jspecify.annotations.Nullable;
 
@@ -41,9 +43,14 @@ import java.util.stream.Collectors;
 public class ClientAgeManager {
     private final Set<Runnable> itemRestrictionListeners = new HashSet<>();
 
-    private AgeItemRestrictions itemRestrictions = AgeItemRestrictions.EMPTY;
-    private boolean initiatedItemRestrictions = false;
-    private Set<Item> lockedItems = Collections.emptySet();
+    @Nullable
+    private List<ItemStack> gatedDisplayStacks = List.of();
+
+    private IngredientIndex lockedIngredients = IngredientIndex.EMPTY;
+    private IngredientIndex gatedIngredients = IngredientIndex.EMPTY;
+
+    @Nullable
+    private AgeItemRestrictions itemRestrictions;
 
     public void bootstrap() {
         GenesisFramework.bootstrapLog("Client Age Manager");
@@ -64,7 +71,7 @@ public class ClientAgeManager {
     }
 
     private void addAttributeTooltips(ItemStack stack, Consumer<Component> consumer) {
-        for (Map.Entry<Identifier, List<ItemTrait>> entry : this.itemRestrictions.traitsByAge().entrySet()) {
+        for (Map.Entry<Identifier, List<ItemTrait>> entry : this.getItemRestrictions().traitsByAge().entrySet()) {
             Identifier ageId = entry.getKey();
             List<ItemTrait> traits = entry.getValue();
             ItemAttributeModifiers itemAttributeModifiers = aggregateItemAttributeModifiers(stack, traits);
@@ -130,9 +137,11 @@ public class ClientAgeManager {
     public void reset() {
         GenesisFramework.LOGGER.info("Resetting Age Manager");
 
-        this.itemRestrictions = AgeItemRestrictions.EMPTY;
-        this.initiatedItemRestrictions = false;
-        this.lockedItems = Collections.emptySet();
+        this.gatedDisplayStacks = List.of();
+        this.gatedIngredients = IngredientIndex.EMPTY;
+        this.lockedIngredients = IngredientIndex.EMPTY;
+        this.itemRestrictions = null;
+
         this.notifyItemRestrictionListeners();
     }
 
@@ -141,7 +150,7 @@ public class ClientAgeManager {
             return true;
         }
 
-        return !this.lockedItems.contains(stack.getItem());
+        return !this.lockedIngredients.matches(stack);
     }
 
     public List<AgeRequirementData> getAgeRequirements() {
@@ -159,47 +168,45 @@ public class ClientAgeManager {
             return Optional.empty();
         }
 
+        Set<Identifier> lockedAgeIds = this.lockedIngredients.getMatchingAgeIds(stack);
+
         Set<Identifier> unlockedAgeIds = requiredAgeIds
                 .stream()
-                .filter(ageId -> this.isUnlockedForAge(ageId, stack))
+                .filter(ageId -> !lockedAgeIds.contains(ageId))
                 .collect(Collectors.toSet());
 
         return Optional.of(new AgeRequirementData(stack, requiredAgeIds, unlockedAgeIds));
     }
 
-    private boolean isUnlockedForAge(Identifier ageId, ItemStack stack) {
-        return !hasMatchingIngredient(
-                this.itemRestrictions.lockedByAge().getOrDefault(ageId, List.of()),
-                stack
-        );
-    }
-
     private List<Identifier> getRequiredAgeIds(ItemStack stack) {
-        return this.itemRestrictions
-                .gatedByAge()
-                .entrySet()
-                .stream()
-                .filter(entry -> hasMatchingIngredient(entry.getValue(), stack))
-                .map(Map.Entry::getKey)
-                .sorted()
-                .toList();
-    }
-
-    private static boolean hasMatchingIngredient(List<Ingredient> ingredients, ItemStack stack) {
-        return ingredients.stream().anyMatch(ingredient -> ingredient.test(stack));
+        return this.gatedIngredients.getMatchingAgeIds(stack).stream().sorted().toList();
     }
 
     private List<ItemStack> getGatedStacks() {
-        return this.itemRestrictions
-                .gatedByAge()
-                .values()
-                .stream()
-                .flatMap(Collection::stream)
-                .flatMap(Ingredient::items)
-                .map(Holder::value)
-                .distinct()
-                .map(Item::getDefaultInstance)
-                .toList();
+        if (this.gatedDisplayStacks == null) {
+            Level level = Minecraft.getInstance().level;
+
+            if (level == null) {
+                return List.of();
+            }
+
+            ContextMap context = SlotDisplayContext.fromLevel(level);
+            Set<ItemStack> stacks = ItemStackLinkedSet.createTypeAndComponentsSet();
+
+            this.gatedIngredients.forEachIngredient(ingredient -> {
+                for (ItemStack stack : ingredient.display().resolveForStacks(context)) {
+                    if (ingredient.test(stack)) {
+                        ItemStack copy = stack.copy();
+                        copy.setCount(1);
+                        stacks.add(copy);
+                    }
+                }
+            });
+
+            this.gatedDisplayStacks = List.copyOf(stacks);
+        }
+
+        return this.gatedDisplayStacks;
     }
 
     public void addItemRestrictionListener(Runnable listener) {
@@ -215,17 +222,18 @@ public class ClientAgeManager {
     }
 
     public void updateItemRestrictions(PartialAgeItemRestrictions restrictions) {
-        this.applyItemRestrictions(restrictions.toAgeItemRestrictions(this.itemRestrictions));
+        this.applyItemRestrictions(restrictions.toAgeItemRestrictions(this.getItemRestrictions()));
     }
 
     private void applyItemRestrictions(AgeItemRestrictions updatedItemRestrictions) {
-        if (updatedItemRestrictions.equals(this.itemRestrictions)) {
+        boolean initial = this.itemRestrictions == null;
+        AgeItemRestrictions previousItemRestrictions = this.getItemRestrictions();
+
+        if (!initial && updatedItemRestrictions.equals(previousItemRestrictions)) {
             return;
         }
 
-        boolean initial = !this.initiatedItemRestrictions;
-
-        List<Ingredient> oldLockedItems = flatten(this.itemRestrictions.lockedByAge());
+        List<Ingredient> oldLockedItems = flatten(previousItemRestrictions.lockedByAge());
         List<Ingredient> newLockedItems = flatten(updatedItemRestrictions.lockedByAge());
 
         int oldLockedItemsSize = oldLockedItems.size();
@@ -233,10 +241,8 @@ public class ClientAgeManager {
 
         List<Ingredient> lockedItemsDifference = getDifference(oldLockedItems, newLockedItems);
 
+        this.updateIngredientIndexes(previousItemRestrictions, updatedItemRestrictions);
         this.itemRestrictions = updatedItemRestrictions;
-        this.initiatedItemRestrictions = true;
-
-        this.rebuildLockedItemsSet();
 
         this.notifyItemRestrictionListeners();
 
@@ -253,13 +259,22 @@ public class ClientAgeManager {
         this.afterUpdateItemUnlocks(lockedItemsDifference);
     }
 
-    private void rebuildLockedItemsSet() {
-        this.lockedItems = this.itemRestrictions
-                .lockedByAge().values().stream()
-                .flatMap(Collection::stream)
-                .flatMap(Ingredient::items)
-                .map(Holder::value)
-                .collect(Collectors.toSet());
+    private void updateIngredientIndexes(
+            AgeItemRestrictions previousItemRestrictions,
+            AgeItemRestrictions updatedItemRestrictions
+    ) {
+        if (!updatedItemRestrictions.gatedByAge().equals(previousItemRestrictions.gatedByAge())) {
+            this.gatedIngredients = IngredientIndex.create(updatedItemRestrictions.gatedByAge());
+            this.gatedDisplayStacks = null;
+        }
+
+        if (!updatedItemRestrictions.lockedByAge().equals(previousItemRestrictions.lockedByAge())) {
+            this.lockedIngredients = IngredientIndex.create(updatedItemRestrictions.lockedByAge());
+        }
+    }
+
+    private AgeItemRestrictions getItemRestrictions() {
+        return Objects.requireNonNullElse(this.itemRestrictions, AgeItemRestrictions.EMPTY);
     }
 
     private static List<Ingredient> flatten(Map<Identifier, List<Ingredient>> ingredientsByAge) {
@@ -283,16 +298,15 @@ public class ClientAgeManager {
         ToastManager toastManager = client.gui.toastManager();
 
         for (Ingredient ingredient : changes) {
-            ingredient.items()
-                      .forEach(entry -> RecipeToast.addOrUpdate(toastManager, createRecipeDisplay(entry)));
+            RecipeToast.addOrUpdate(toastManager, createRecipeDisplay(ingredient));
         }
     }
 
-    private static RecipeDisplay createRecipeDisplay(Holder<Item> entry) {
+    private static RecipeDisplay createRecipeDisplay(Ingredient ingredient) {
         return new RecipeDisplay() {
             @Override
             public SlotDisplay result() {
-                return new SlotDisplay.ItemStackSlotDisplay(new ItemStackTemplate(entry.value()));
+                return ingredient.display();
             }
 
             @Override

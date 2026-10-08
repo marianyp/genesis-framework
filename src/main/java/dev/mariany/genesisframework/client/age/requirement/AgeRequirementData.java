@@ -32,13 +32,17 @@ public record AgeRequirementData(
                 List<Identifier> otherRequiredAges,
                 Set<Identifier> otherUnlockedAges
         )
-                && this.stack.getItem() == otherStack.getItem()
+                && ItemStack.isSameItemSameComponents(this.stack, otherStack)
                 && this.requiredAgeIds.equals(otherRequiredAges)
                 && this.unlockedAgeIds.equals(otherUnlockedAges);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.stack.getItem(), this.requiredAgeIds, this.unlockedAgeIds);
+        return Objects.hash(
+                ItemStack.hashItemAndComponents(this.stack),
+                this.requiredAgeIds,
+                this.unlockedAgeIds
+        );
     }
 }
